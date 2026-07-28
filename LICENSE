@@ -1,0 +1,3 @@
+touch .env.example
+New-Item .env.example -ItemType File
+git status
