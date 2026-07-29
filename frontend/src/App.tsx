@@ -30,7 +30,7 @@ export default function App() {
     { key: "dashboard", title: "لوحة التحكم" },
     { key: "sites", title: "المواقع" },
     { key: "projects", title: "المشاريع" },
-    { key: "buildings", title: "المباني" },
+    { key: "assets", title: "الأصول" },
     { key: "gates", title: "البوابات" },
     { key: "employees", title: "الموظفون" },
     { key: "warehouses", title: "المستودعات" },
@@ -47,7 +47,7 @@ export default function App() {
       case "projects":
         return <ProjectsPage />;
 
-      case "buildings":
+      case "assets":
         return <Buildings />;
 
       case "gates":
