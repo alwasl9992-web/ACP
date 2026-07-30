@@ -23,10 +23,22 @@ import Maintenance from "./pages/Maintenance";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 
-export default function App() {
-  const [page, setPage] = useState("dashboard");
+type PageKey =
+  | "dashboard"
+  | "sites"
+  | "projects"
+  | "assets"
+  | "gates"
+  | "employees"
+  | "warehouses"
+  | "maintenance"
+  | "reports"
+  | "settings";
 
-  const menu = [
+export default function App() {
+  const [page, setPage] = useState<PageKey>("dashboard");
+
+  const menu: Array<{ key: PageKey; title: string }> = [
     { key: "dashboard", title: "لوحة التحكم" },
     { key: "sites", title: "المواقع" },
     { key: "projects", title: "المشاريع" },
@@ -43,31 +55,22 @@ export default function App() {
     switch (page) {
       case "sites":
         return <SitesPage />;
-
       case "projects":
-        return <ProjectsPage />;
-
+        return <ProjectsPage onProjectOpened={() => setPage("assets")} />;
       case "assets":
         return <Buildings />;
-
       case "gates":
         return <Gates />;
-
       case "employees":
         return <Employees />;
-
       case "warehouses":
         return <Warehouses />;
-
       case "maintenance":
         return <Maintenance />;
-
       case "reports":
         return <Reports />;
-
       case "settings":
         return <Settings />;
-
       default:
         return <Dashboard />;
     }
@@ -108,12 +111,13 @@ export default function App() {
       </Drawer>
 
       <Box
+        component="main"
         sx={{
           flexGrow: 1,
           mr: "260px",
           mt: "64px",
           bgcolor: "#f5f7fa",
-          minHeight: "100vh",
+          minHeight: "calc(100vh - 64px)",
           p: 3,
         }}
       >
