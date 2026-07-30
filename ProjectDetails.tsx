@@ -1,7 +1,6 @@
 import { Box, Grid, Paper, Typography } from "@mui/material";
 
 export default function ProjectDetails() {
-
   const cards = [
     "المباني",
     "البوابات",
@@ -13,40 +12,26 @@ export default function ProjectDetails() {
 
   return (
     <Box p={4}>
-
       <Typography variant="h4" mb={4}>
         مشروع ACP التجريبي
       </Typography>
 
       <Grid container spacing={3}>
-
         {cards.map((item) => (
-
-          <Grid item xs={12} md={4} key={item}>
-
+          <Grid key={item} size={{ xs: 12, md: 4 }}>
             <Paper
               sx={{
-                p:4,
-                textAlign:"center",
-                cursor:"pointer",
-                borderRadius:3,
+                p: 4,
+                textAlign: "center",
+                cursor: "pointer",
+                borderRadius: 3,
               }}
             >
-
-              <Typography variant="h6">
-
-                {item}
-
-              </Typography>
-
+              <Typography variant="h6">{item}</Typography>
             </Paper>
-
           </Grid>
-
         ))}
-
       </Grid>
-
     </Box>
   );
 }
