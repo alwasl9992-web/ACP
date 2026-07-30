@@ -6,29 +6,25 @@ const STORAGE_KEY = "ACP_PROJECTS";
 
 class ProjectService {
   getProjects(): Project[] {
-    const saved = StorageService.read(STORAGE_KEY);
+    const saved = StorageService.read<Project[]>(STORAGE_KEY);
 
     if (saved) return saved;
 
     StorageService.write(STORAGE_KEY, projects);
-
-    return projects;
+    return [...projects];
   }
 
   getProject(id: string): Project | undefined {
-    return this.getProjects().find((p) => p.id === id);
+    return this.getProjects().find((project) => project.id === id);
   }
 
-  saveProjects(projects: Project[]) {
-    StorageService.write(STORAGE_KEY, projects);
+  saveProjects(projectList: Project[]): boolean {
+    return StorageService.write(STORAGE_KEY, projectList);
   }
 
-  addProject(project: Project) {
-    const list = this.getProjects();
-
-    list.push(project);
-
-    this.saveProjects(list);
+  addProject(project: Project): boolean {
+    const nextProjects = [...this.getProjects(), project];
+    return this.saveProjects(nextProjects);
   }
 }
 
