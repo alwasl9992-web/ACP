@@ -20,75 +20,61 @@ import ProjectService from "../services/ProjectService";
 import type { Project } from "../models/Project";
 import { useProject } from "../context/ProjectContext";
 
-export default function ProjectsPage() {
+interface ProjectsPageProps {
+  onProjectOpened?: () => void;
+}
+
+const emptyProject: Project = {
+  id: "",
+  code: "",
+  name: "",
+  client: "",
+  location: "",
+  status: "Running",
+  startDate: "",
+  endDate: "",
+  manager: "",
+  completion: 0,
+  buildings: 0,
+  gates: 0,
+  assets: 0,
+  employees: 0,
+  createdAt: "",
+  updatedAt: "",
+};
+
+export default function ProjectsPage({ onProjectOpened }: ProjectsPageProps) {
   const { setSelectedProject } = useProject();
 
   const [projects, setProjects] = useState<Project[]>(
     ProjectService.getProjects()
   );
-
   const [open, setOpen] = useState(false);
-
-  const [newProject, setNewProject] = useState<Project>({
-    id: "",
-    code: "",
-    name: "",
-    client: "",
-    location: "",
-    status: "Running",
-    startDate: "",
-    endDate: "",
-    manager: "",
-    completion: 0,
-    buildings: 0,
-    gates: 0,
-    assets: 0,
-    employees: 0,
-    createdAt: "",
-    updatedAt: "",
-  });
+  const [newProject, setNewProject] = useState<Project>(emptyProject);
 
   const addProject = () => {
-    if (!newProject.name) return;
+    const projectName = newProject.name.trim();
+    if (!projectName) return;
 
+    const now = new Date().toISOString();
     const project: Project = {
       ...newProject,
-      id: Date.now().toString(),
+      name: projectName,
+      id: crypto.randomUUID(),
       code: `ACP-${String(projects.length + 1).padStart(3, "0")}`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: now,
+      updatedAt: now,
     };
 
     ProjectService.addProject(project);
-
     setProjects(ProjectService.getProjects());
-
-    setNewProject({
-      id: "",
-      code: "",
-      name: "",
-      client: "",
-      location: "",
-      status: "Running",
-      startDate: "",
-      endDate: "",
-      manager: "",
-      completion: 0,
-      buildings: 0,
-      gates: 0,
-      assets: 0,
-      employees: 0,
-      createdAt: "",
-      updatedAt: "",
-    });
-
+    setNewProject(emptyProject);
     setOpen(false);
   };
 
   const openProject = (project: Project) => {
     setSelectedProject(project);
-
-    alert(`تم فتح المشروع:\n${project.name}`);
+    onProjectOpened?.();
   };
 
   return (
@@ -101,7 +87,7 @@ export default function ProjectsPage() {
         </Button>
       </Box>
 
-      <Paper>
+      <Paper sx={{ overflowX: "auto" }}>
         <Table>
           <TableHead>
             <TableRow>
@@ -114,18 +100,17 @@ export default function ProjectsPage() {
           </TableHead>
 
           <TableBody>
-            {projects.map((p) => (
-              <TableRow key={p.id}>
-                <TableCell>{p.code}</TableCell>
-                <TableCell>{p.name}</TableCell>
-                <TableCell>{p.client}</TableCell>
-                <TableCell>{p.location}</TableCell>
-
+            {projects.map((project) => (
+              <TableRow key={project.id} hover>
+                <TableCell>{project.code}</TableCell>
+                <TableCell>{project.name}</TableCell>
+                <TableCell>{project.client}</TableCell>
+                <TableCell>{project.location}</TableCell>
                 <TableCell align="center">
                   <Button
                     variant="contained"
                     size="small"
-                    onClick={() => openProject(p)}
+                    onClick={() => openProject(project)}
                   >
                     فتح المشروع
                   </Button>
@@ -136,20 +121,18 @@ export default function ProjectsPage() {
         </Table>
       </Paper>
 
-      <Dialog open={open} onClose={() => setOpen(false)}>
+      <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>مشروع جديد</DialogTitle>
 
         <DialogContent>
           <TextField
+            required
             fullWidth
             margin="normal"
             label="اسم المشروع"
             value={newProject.name}
-            onChange={(e) =>
-              setNewProject({
-                ...newProject,
-                name: e.target.value,
-              })
+            onChange={(event) =>
+              setNewProject({ ...newProject, name: event.target.value })
             }
           />
 
@@ -158,11 +141,8 @@ export default function ProjectsPage() {
             margin="normal"
             label="العميل"
             value={newProject.client}
-            onChange={(e) =>
-              setNewProject({
-                ...newProject,
-                client: e.target.value,
-              })
+            onChange={(event) =>
+              setNewProject({ ...newProject, client: event.target.value })
             }
           />
 
@@ -171,21 +151,19 @@ export default function ProjectsPage() {
             margin="normal"
             label="الموقع"
             value={newProject.location}
-            onChange={(e) =>
-              setNewProject({
-                ...newProject,
-                location: e.target.value,
-              })
+            onChange={(event) =>
+              setNewProject({ ...newProject, location: event.target.value })
             }
           />
         </DialogContent>
 
         <DialogActions>
-          <Button onClick={() => setOpen(false)}>
-            إلغاء
-          </Button>
-
-          <Button variant="contained" onClick={addProject}>
+          <Button onClick={() => setOpen(false)}>إلغاء</Button>
+          <Button
+            variant="contained"
+            onClick={addProject}
+            disabled={!newProject.name.trim()}
+          >
             حفظ
           </Button>
         </DialogActions>
@@ -193,4 +171,3 @@ export default function ProjectsPage() {
     </Box>
   );
 }
-
