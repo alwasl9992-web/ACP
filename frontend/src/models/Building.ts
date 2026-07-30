@@ -3,19 +3,39 @@ export interface Building {
 
   projectId: string;
 
+  // الهوية
   code: string;
-
   name: string;
-
   description: string;
 
-  floors: number;
+  // نوع الأصل
+  assetType: string;
 
+  // الموقع
+  location: string;
+
+  // مواصفات الأصل
+  manufacturer: string;
+  model: string;
+  serialNumber: string;
+
+  // معلومات المبنى (إن كان الأصل مبنى)
+  floors: number;
   gates: number;
 
-  status: "Running" | "Completed";
+  // دورة الحياة
+  installDate: string;
+  warrantyExpiry: string;
+
+  // الأهمية
+  criticality: "Low" | "Medium" | "High" | "Critical";
+
+  // الحالة
+  status: "Running" | "Maintenance" | "Stopped" | "Completed";
+
+  // التتبع
+  qrCode: string;
 
   createdAt: string;
-
   updatedAt: string;
 }

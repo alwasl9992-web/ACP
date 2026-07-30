@@ -1,105 +1,173 @@
 import {
   Box,
-  Card,
-  CardContent,
   Typography,
   Button,
-  Grid,
   Alert,
+  Chip,
+  Paper,
 } from "@mui/material";
+
+import {
+  DataGrid,
+  type GridColDef,
+} from "@mui/x-data-grid";
 
 import BuildingService from "../services/BuildingService";
 import { useProject } from "../context/ProjectContext";
+import type { Building } from "../models/Building";
 
-export default function Buildings() {
+interface BuildingsProps {
+  onOpenAsset: (asset: Building) => void;
+}
+
+export default function Buildings({
+  onOpenAsset,
+}: BuildingsProps) {
   const { selectedProject } = useProject();
 
   if (!selectedProject) {
     return (
       <Box sx={{ p: 4 }}>
         <Alert severity="info">
-          الرجاء اختيار مشروع أولاً من صفحة المشاريع.
+          الرجاء اختيار مشروع أولاً.
         </Alert>
       </Box>
     );
   }
 
-  const assets = BuildingService.getBuildingsByProject(selectedProject.id);
+  const assets =
+    BuildingService.getBuildingsByProject(selectedProject.id);
+
+  const columns: GridColDef<Building>[] = [
+    {
+      field: "code",
+      headerName: "رقم الأصل",
+      width: 130,
+    },
+    {
+      field: "name",
+      headerName: "اسم الأصل",
+      flex: 1,
+      minWidth: 180,
+    },
+    {
+      field: "assetType",
+      headerName: "النوع",
+      width: 140,
+    },
+    {
+      field: "location",
+      headerName: "الموقع",
+      width: 180,
+    },
+    {
+      field: "criticality",
+      headerName: "الأهمية",
+      width: 140,
+      renderCell: (params) => (
+        <Chip
+          size="small"
+          label={params.value}
+          color={
+            params.value === "Critical"
+              ? "error"
+              : params.value === "High"
+                ? "warning"
+                : params.value === "Medium"
+                  ? "info"
+                  : "success"
+          }
+        />
+      ),
+    },
+    {
+      field: "status",
+      headerName: "الحالة",
+      width: 140,
+      renderCell: (params) => (
+        <Chip
+          size="small"
+          label={params.value}
+          color={
+            params.value === "Running"
+              ? "success"
+              : params.value === "Stopped"
+                ? "error"
+                : "warning"
+          }
+        />
+      ),
+    },
+    {
+      field: "actions",
+      headerName: "الإجراءات",
+      width: 150,
+      sortable: false,
+      filterable: false,
+      renderCell: (params) => (
+        <Button
+          size="small"
+          variant="outlined"
+          onClick={() => onOpenAsset(params.row)}
+        >
+          فتح الأصل
+        </Button>
+      ),
+    },
+  ];
 
   return (
     <Box sx={{ p: 4 }}>
-      <Typography variant="h5" sx={{ mb: 1 }}>
-        المشروع الحالي
-      </Typography>
-
-      <Typography color="primary" sx={{ mb: 4 }}>
-        {selectedProject.name}
-      </Typography>
-
       <Box
         sx={{
           display: "flex",
           justifyContent: "space-between",
-          mb: 4,
+          alignItems: "center",
+          gap: 2,
+          mb: 3,
         }}
       >
-        <Typography variant="h4">
-          إدارة الأصول
-        </Typography>
+        <Box>
+          <Typography variant="h4">
+            سجل الأصول
+          </Typography>
+
+          <Typography color="text.secondary">
+            المشروع الحالي: {selectedProject.name}
+          </Typography>
+        </Box>
 
         <Button variant="contained">
           إضافة أصل
         </Button>
       </Box>
 
-      <Grid container spacing={3}>
-        {assets.map((asset) => (
-          <Grid
-            key={asset.id}
-            size={{ xs: 12, md: 6, lg: 4 }}
-          >
-            <Card
-              sx={{
-                borderRadius: 3,
-                transition: ".2s",
-                "&:hover": {
-                  transform: "translateY(-4px)",
-                },
-              }}
-            >
-              <CardContent>
-                <Typography variant="h6">
-                  {asset.name}
-                </Typography>
-
-                <Typography sx={{ mt: 2 }}>
-                  الكود : {asset.code}
-                </Typography>
-
-                <Typography>
-                  الوصف : {asset.description}
-                </Typography>
-
-                <Typography>
-                  البوابات : {asset.gates}
-                </Typography>
-
-                <Typography>
-                  الحالة : {asset.status}
-                </Typography>
-
-                <Button
-                  sx={{ mt: 2 }}
-                  fullWidth
-                  variant="outlined"
-                >
-                  فتح الأصل
-                </Button>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
+      <Paper
+        sx={{
+          height: 600,
+          width: "100%",
+          overflow: "hidden",
+        }}
+      >
+        <DataGrid
+          rows={assets}
+          columns={columns}
+          disableRowSelectionOnClick
+          pageSizeOptions={[10, 25, 50]}
+          initialState={{
+            pagination: {
+              paginationModel: {
+                page: 0,
+                pageSize: 10,
+              },
+            },
+          }}
+          sx={{
+            border: 0,
+            direction: "rtl",
+          }}
+        />
+      </Paper>
     </Box>
   );
 }
