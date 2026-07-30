@@ -15,7 +15,7 @@ import ACP from "./config/acp.config";
 import Dashboard from "./pages/Dashboard";
 import SitesPage from "./sites/SitesPage";
 import ProjectsPage from "./pages/ProjectsPage";
-import Buildings from "./pages/Buildings";
+import Assets from "./pages/Assets";
 import Gates from "./pages/Gates";
 import Employees from "./pages/Employees";
 import Warehouses from "./pages/Warehouses";
@@ -43,31 +43,22 @@ export default function App() {
     switch (page) {
       case "sites":
         return <SitesPage />;
-
       case "projects":
         return <ProjectsPage />;
-
       case "assets":
-        return <Buildings />;
-
+        return <Assets />;
       case "gates":
         return <Gates />;
-
       case "employees":
         return <Employees />;
-
       case "warehouses":
         return <Warehouses />;
-
       case "maintenance":
         return <Maintenance />;
-
       case "reports":
         return <Reports />;
-
       case "settings":
         return <Settings />;
-
       default:
         return <Dashboard />;
     }
