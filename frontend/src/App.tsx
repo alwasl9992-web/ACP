@@ -17,6 +17,7 @@ import {
   Typography,
 } from "@mui/material";
 import DashboardRoundedIcon from "@mui/icons-material/DashboardRounded";
+import PublicRoundedIcon from "@mui/icons-material/PublicRounded";
 import LocationOnRoundedIcon from "@mui/icons-material/LocationOnRounded";
 import AccountTreeRoundedIcon from "@mui/icons-material/AccountTreeRounded";
 import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
@@ -29,6 +30,7 @@ import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 import NotificationsNoneRoundedIcon from "@mui/icons-material/NotificationsNoneRounded";
 
 import ACP from "./config/acp.config";
+import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
 import SitesPage from "./sites/SitesPage";
 import ProjectsPage from "./pages/ProjectsPage";
@@ -43,6 +45,7 @@ import Settings from "./pages/Settings";
 const drawerWidth = 276;
 
 const menu = [
+  { key: "landing", title: "الموقع التعريفي", icon: PublicRoundedIcon },
   { key: "dashboard", title: "لوحة التحكم", icon: DashboardRoundedIcon },
   { key: "sites", title: "المواقع", icon: LocationOnRoundedIcon },
   { key: "projects", title: "المشاريع", icon: AccountTreeRoundedIcon },
@@ -56,10 +59,12 @@ const menu = [
 ];
 
 export default function App() {
-  const [page, setPage] = useState("dashboard");
+  const [page, setPage] = useState("landing");
 
   const renderPage = () => {
     switch (page) {
+      case "landing":
+        return <LandingPage />;
       case "sites":
         return <SitesPage />;
       case "projects":
@@ -83,7 +88,7 @@ export default function App() {
     }
   };
 
-  const activeTitle = menu.find((item) => item.key === page)?.title ?? "لوحة التحكم";
+  const activeTitle = menu.find((item) => item.key === page)?.title ?? "الموقع التعريفي";
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", direction: "rtl", bgcolor: "#f3f6fb" }}>
@@ -105,7 +110,7 @@ export default function App() {
           <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ flex: 1, minWidth: 0 }}>
             <Box sx={{ minWidth: 0 }}>
               <Typography variant="overline" sx={{ color: "#8a6a2f", fontWeight: 800, letterSpacing: 1 }}>
-                ACP ENTERPRISE
+                ACP ENTERPRISE · ASSET • CONNECT • PROTECT
               </Typography>
               <Typography variant="h6" noWrap sx={{ fontWeight: 800, lineHeight: 1.1 }}>
                 {activeTitle}
@@ -114,7 +119,7 @@ export default function App() {
 
             <Stack direction="row" spacing={1.2} alignItems="center">
               <Chip
-                label="النظام يعمل"
+                label="نسخة ديمو جاهزة للعرض"
                 size="small"
                 sx={{ display: { xs: "none", sm: "flex" }, bgcolor: "#eaf7ef", color: "#18794e", fontWeight: 800 }}
               />
@@ -123,7 +128,7 @@ export default function App() {
                   <NotificationsNoneRoundedIcon />
                 </IconButton>
               </Tooltip>
-              <Avatar sx={{ width: 38, height: 38, bgcolor: "#10243e", fontSize: 14, fontWeight: 800 }}>AH</Avatar>
+              <Avatar sx={{ width: 38, height: 38, bgcolor: "#10243e", fontSize: 14, fontWeight: 800 }}>ACP</Avatar>
             </Stack>
           </Stack>
         </Toolbar>
