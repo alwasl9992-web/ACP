@@ -58,6 +58,29 @@ export interface PlatformBuilding {
   updated_at: string;
 }
 
+export interface PlatformAsset {
+  id: string;
+  project_id: string;
+  building_id: string | null;
+  code: string;
+  name: string;
+  description: string | null;
+  asset_type: string;
+  location: string | null;
+  manufacturer: string | null;
+  model: string | null;
+  serial_number: string | null;
+  floors: number;
+  gates_count: number;
+  install_date: string | null;
+  warranty_expiry: string | null;
+  criticality: "Low" | "Medium" | "High" | "Critical";
+  operational_status: "Running" | "Maintenance" | "Stopped";
+  qr_code: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PlatformGate {
   id: string;
   project_id: string;
@@ -92,6 +115,34 @@ export interface PlatformWarehouse {
   status: RecordStatus;
   created_at: string;
   updated_at: string;
+}
+
+export interface PlatformWarehouseItem {
+  id: string;
+  warehouse_id: string;
+  sku: string;
+  name: string;
+  unit: string;
+  quantity: number;
+  minimum_quantity: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PlatformStockMovement {
+  id: string;
+  item_id: string;
+  movement_type:
+    | "receipt"
+    | "issue"
+    | "transfer_in"
+    | "transfer_out"
+    | "adjustment";
+  quantity: number;
+  reference_no: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
 }
 
 export interface PlatformIncident {
