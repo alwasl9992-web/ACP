@@ -49,14 +49,11 @@ jobs:
         run: |
           set -euo pipefail
           missing=()
-          required=(
-            SUPABASE_ACCESS_TOKEN
-            SUPABASE_PROJECT_ID
-            SUPABASE_DB_PASSWORD
-            VITE_SUPABASE_URL
-            VITE_SUPABASE_ANON_KEY
-            VITE_APP_URL
-          )
+          required=(VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY VITE_APP_URL)
+
+          if [[ "${{ inputs.deploy_database }}" == "true" || "${{ inputs.deploy_functions }}" == "true" ]]; then
+            required+=(SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_ID SUPABASE_DB_PASSWORD)
+          fi
 
           if [[ "${{ inputs.deploy_frontend }}" == "true" ]]; then
             required+=(VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID)
@@ -83,7 +80,7 @@ jobs:
             *) echo "VITE_APP_URL must use HTTPS" >&2; exit 1 ;;
           esac
 
-  deploy-backend:
+  deploy_backend:
     needs: validate
     if: ${{ inputs.deploy_database || inputs.deploy_functions }}
     runs-on: ubuntu-latest
@@ -106,7 +103,7 @@ jobs:
 
       - name: Push pending database migrations
         if: ${{ inputs.deploy_database }}
-        run: supabase db push --linked --password "$SUPABASE_DB_PASSWORD"
+        run: supabase db push --password "$SUPABASE_DB_PASSWORD"
 
       - name: Configure Edge Function origin
         if: ${{ inputs.deploy_functions }}
@@ -123,11 +120,11 @@ jobs:
         if: ${{ inputs.deploy_functions }}
         run: supabase functions deploy invite-user --project-ref "$SUPABASE_PROJECT_ID"
 
-  deploy-frontend:
+  deploy_frontend:
     needs:
       - validate
-      - deploy-backend
-    if: ${{ always() && inputs.deploy_frontend && needs.validate.result == 'success' && (needs.deploy-backend.result == 'success' || needs.deploy-backend.result == 'skipped') }}
+      - deploy_backend
+    if: ${{ always() && inputs.deploy_frontend && needs.validate.result == 'success' && (needs.deploy_backend.result == 'success' || needs.deploy_backend.result == 'skipped') }}
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 15
@@ -139,12 +136,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
 
-      - name: Install frontend dependencies
+      - name: Install pinned frontend dependencies
         working-directory: frontend
-        run: npm ci --no-audit --no-fund
+        run: npm install --no-audit --no-fund
 
       - name: Run production quality gates
         working-directory: frontend
