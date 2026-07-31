@@ -7,13 +7,16 @@ import App from "./App";
 
 import { ProjectProvider } from "./context/ProjectContext";
 import { BuildingProvider } from "./context/BuildingContext";
+import { NavigationProvider } from "./context/NavigationContext";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <ProjectProvider>
-      <BuildingProvider>
-        <App />
-      </BuildingProvider>
-    </ProjectProvider>
+    <NavigationProvider>
+      <ProjectProvider>
+        <BuildingProvider>
+          <App />
+        </BuildingProvider>
+      </ProjectProvider>
+    </NavigationProvider>
   </StrictMode>
 );

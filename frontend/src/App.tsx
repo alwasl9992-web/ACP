@@ -16,6 +16,7 @@ import Dashboard from "./pages/Dashboard";
 import SitesPage from "./sites/SitesPage";
 import ProjectsPage from "./pages/ProjectsPage";
 import Buildings from "./pages/Buildings";
+import AssetProfile from "./pages/AssetProfile";
 import Gates from "./pages/Gates";
 import Employees from "./pages/Employees";
 import Warehouses from "./pages/Warehouses";
@@ -23,8 +24,14 @@ import Maintenance from "./pages/Maintenance";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 
+import { useNavigation } from "./context/NavigationContext";
+import type { Building } from "./models/Building";
+
 export default function App() {
-  const [page, setPage] = useState("dashboard");
+  const { page, navigate } = useNavigation();
+
+  const [selectedAsset, setSelectedAsset] =
+    useState<Building | null>(null);
 
   const menu = [
     { key: "dashboard", title: "لوحة التحكم" },
@@ -39,6 +46,16 @@ export default function App() {
     { key: "settings", title: "الإعدادات" },
   ];
 
+  const openAssetProfile = (asset: Building) => {
+    setSelectedAsset(asset);
+    navigate("asset-profile");
+  };
+
+  const closeAssetProfile = () => {
+    setSelectedAsset(null);
+    navigate("assets");
+  };
+
   const renderPage = () => {
     switch (page) {
       case "sites":
@@ -48,7 +65,17 @@ export default function App() {
         return <ProjectsPage />;
 
       case "assets":
-        return <Buildings />;
+        return <Buildings onOpenAsset={openAssetProfile} />;
+
+      case "asset-profile":
+        return selectedAsset ? (
+          <AssetProfile
+            asset={selectedAsset}
+            onBack={closeAssetProfile}
+          />
+        ) : (
+          <Buildings onOpenAsset={openAssetProfile} />
+        );
 
       case "gates":
         return <Gates />;
@@ -98,8 +125,15 @@ export default function App() {
           {menu.map((item) => (
             <ListItemButton
               key={item.key}
-              selected={page === item.key}
-              onClick={() => setPage(item.key)}
+              selected={
+                page === item.key ||
+                (item.key === "assets" &&
+                  page === "asset-profile")
+              }
+              onClick={() => {
+                setSelectedAsset(null);
+                navigate(item.key);
+              }}
             >
               <ListItemText primary={item.title} />
             </ListItemButton>
@@ -108,6 +142,7 @@ export default function App() {
       </Drawer>
 
       <Box
+        component="main"
         sx={{
           flexGrow: 1,
           mr: "260px",
