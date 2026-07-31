@@ -6,9 +6,14 @@ import {
   restUpsert,
 } from "../lib/supabaseHttp";
 import {
+  buildQueryCacheKey,
+  cacheQueryRows,
+  clearQueryCache,
   enqueueMutation,
   listQueuedMutations,
   markMutationFailed,
+  overlayQueuedMutations,
+  readCachedQueryRows,
   removeQueuedMutation,
   type OfflineMutation,
 } from "../offline/offlineQueue";
@@ -52,7 +57,9 @@ function isOnline(): boolean {
   return navigator.onLine && runtimeConfig.configured;
 }
 
-function buildQuery(options: QueryOptions): Record<string, string | number> {
+function buildQuery(
+  options: QueryOptions,
+): Record<string, string | number> {
   const query: Record<string, string | number> = {
     select: options.select ?? "*",
   };
@@ -65,12 +72,30 @@ function buildQuery(options: QueryOptions): Record<string, string | number> {
   return query;
 }
 
-export async function listRecords<T>(
+export async function listRecords<T extends object>(
   table: AcpTable,
   options: QueryOptions = {},
 ): Promise<T[]> {
   assertCloudConfigured();
-  return restSelect<T>(table, buildQuery(options));
+
+  const query = buildQuery(options);
+  const cacheKey = buildQueryCacheKey(table, query);
+  const readOffline = async () => {
+    const cached = await readCachedQueryRows<T>(table, cacheKey);
+    return overlayQueuedMutations<T>(table, cached, options.filters ?? {});
+  };
+
+  if (!isOnline()) return readOffline();
+
+  try {
+    const rows = await restSelect<T>(table, query);
+    await cacheQueryRows(table, cacheKey, rows);
+    return overlayQueuedMutations<T>(table, rows, options.filters ?? {});
+  } catch (error) {
+    const cached = await readOffline();
+    if (cached.length > 0) return cached;
+    throw error;
+  }
 }
 
 export async function createRecord<T extends { id?: string }>(
@@ -92,6 +117,7 @@ export async function createRecord<T extends { id?: string }>(
   }
 
   const rows = await restUpsert<T>(table, payload, "id");
+  await clearQueryCache();
   return rows[0] ?? payload;
 }
 
@@ -112,6 +138,7 @@ export async function updateRecord<T extends object>(
 
   const rows = await restUpdate<T>(table, { id }, value);
   if (!rows[0]) throw new Error(`No ${table} record found for update`);
+  await clearQueryCache();
   return rows[0];
 }
 
@@ -130,6 +157,7 @@ export async function deleteRecord(
   }
 
   await restDelete(table, { id });
+  await clearQueryCache();
 }
 
 async function applyMutation(mutation: OfflineMutation): Promise<void> {
@@ -184,6 +212,8 @@ export async function syncPendingMutations(): Promise<SyncResult> {
       failed += 1;
     }
   }
+
+  if (applied > 0) await clearQueryCache();
 
   return {
     applied,
