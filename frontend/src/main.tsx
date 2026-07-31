@@ -9,6 +9,9 @@ import { AuthProvider } from "./auth/AuthContext";
 import { ProjectProvider } from "./context/ProjectContext";
 import { BuildingProvider } from "./context/BuildingContext";
 import { NavigationProvider } from "./context/NavigationContext";
+import { registerServiceWorker } from "./offline/registerServiceWorker";
+
+registerServiceWorker();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -21,5 +24,5 @@ createRoot(document.getElementById("root")!).render(
         </ProjectProvider>
       </NavigationProvider>
     </AuthProvider>
-  </StrictMode>
+  </StrictMode>,
 );
