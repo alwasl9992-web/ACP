@@ -1,0 +1,105 @@
+name: Encrypted Database Backup
+
+on:
+  schedule:
+    - cron: "15 23 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+  BACKUP_ENCRYPTION_PASSWORD: ${{ secrets.BACKUP_ENCRYPTION_PASSWORD }}
+  BACKUP_S3_URI: ${{ secrets.BACKUP_S3_URI }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+
+concurrency:
+  group: encrypted-database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.ACP_BACKUPS_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 20
+
+    steps:
+      - name: Validate backup configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          for variable in SUPABASE_DB_URL BACKUP_ENCRYPTION_PASSWORD; do
+            if [[ -z "${!variable:-}" ]]; then
+              missing+=("$variable")
+            fi
+          done
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing backup secrets: %s\n' "${missing[*]}" >&2
+            exit 1
+          fi
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+
+      - name: Create and verify database dump
+        shell: bash
+        run: |
+          set -euo pipefail
+          timestamp="$(date -u +'%Y%m%dT%H%M%SZ')"
+          filename="acp-postgres-${timestamp}.dump"
+          pg_dump \
+            --format=custom \
+            --compress=9 \
+            --no-owner \
+            --no-acl \
+            --dbname="$SUPABASE_DB_URL" \
+            --file="$filename"
+          pg_restore --list "$filename" >/dev/null
+          sha256sum "$filename" > "${filename}.sha256"
+          echo "BACKUP_FILE=$filename" >> "$GITHUB_ENV"
+
+      - name: Encrypt backup before persistence
+        shell: bash
+        run: |
+          set -euo pipefail
+          openssl enc \
+            -aes-256-cbc \
+            -salt \
+            -pbkdf2 \
+            -iter 250000 \
+            -in "$BACKUP_FILE" \
+            -out "${BACKUP_FILE}.enc" \
+            -pass env:BACKUP_ENCRYPTION_PASSWORD
+          rm --force "$BACKUP_FILE"
+          sha256sum "${BACKUP_FILE}.enc" > "${BACKUP_FILE}.enc.sha256"
+
+      - name: Store encrypted operational copy
+        uses: actions/upload-artifact@v4
+        with:
+          name: acp-database-backup-${{ github.run_id }}
+          path: |
+            ${{ env.BACKUP_FILE }}.enc
+            ${{ env.BACKUP_FILE }}.enc.sha256
+            ${{ env.BACKUP_FILE }}.sha256
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Store optional offsite copy
+        if: ${{ env.BACKUP_S3_URI != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${AWS_ACCESS_KEY_ID:-}" || -z "${AWS_SECRET_ACCESS_KEY:-}" || -z "${AWS_REGION:-}" ]]; then
+            echo "AWS credentials and region are required when BACKUP_S3_URI is set" >&2
+            exit 1
+          fi
+          aws s3 cp "${BACKUP_FILE}.enc" "${BACKUP_S3_URI%/}/${BACKUP_FILE}.enc" --only-show-errors
+          aws s3 cp "${BACKUP_FILE}.enc.sha256" "${BACKUP_S3_URI%/}/${BACKUP_FILE}.enc.sha256" --only-show-errors
