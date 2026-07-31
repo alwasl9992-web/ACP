@@ -33,11 +33,11 @@ const initialRows: GateRecord[] = [
   { id: 3, code: "GT-007", name: "بوابة 1", site: "الموقع الرئيسي", building: "مبنى 2", status: "Maintenance", supervisor: "حسين عبدالله", trucksToday: 6, visitorsToday: 13 },
 ];
 
-const statusLabel = {
+const statusLabel: Record<string, string> = {
   Active: "تشغيل",
   Maintenance: "صيانة",
   Closed: "مغلقة",
-} as const;
+};
 
 export default function Gates() {
   const [rows, setRows] = useState(initialRows);
@@ -81,7 +81,7 @@ export default function Gates() {
         <Chip
           size="small"
           color={value === "Active" ? "success" : value === "Maintenance" ? "warning" : "default"}
-          label={statusLabel[value]}
+          label={statusLabel[String(value)] ?? String(value)}
         />
       ),
     },
