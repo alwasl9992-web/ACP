@@ -66,6 +66,18 @@ test("system settings are singleton and admin-managed", async () => {
   assert.match(sql, /enable row level security/i);
 });
 
+test("security hardening blocks role escalation and isolates project files", async () => {
+  const sql = await read(
+    "supabase/migrations/20260731161000_acp_security_hardening.sql",
+  );
+  assert.match(sql, /protect_profile_privileges/i);
+  assert.match(sql, /Only a system administrator may change roles/i);
+  assert.match(sql, /can_administer_project_members/i);
+  assert.match(sql, /drop policy if exists acp_storage_read/i);
+  assert.match(sql, /storage\.foldername\(name\)/i);
+  assert.match(sql, /can_access_project/i);
+});
+
 test("browser environment template never contains privileged secrets", async () => {
   const env = await read("frontend/.env.example");
   assert.doesNotMatch(env, /service[_-]?role/i);
