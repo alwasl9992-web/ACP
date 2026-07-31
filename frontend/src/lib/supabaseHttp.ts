@@ -116,6 +116,23 @@ export async function restInsert<T extends object>(
   });
 }
 
+export async function restUpsert<T extends object>(
+  table: string,
+  value: Partial<T> | Partial<T>[],
+  conflictColumn = "id",
+): Promise<T[]> {
+  return supabaseRequest<T[]>(
+    buildRestQuery(table, { on_conflict: conflictColumn }),
+    {
+      method: "POST",
+      headers: {
+        Prefer: "resolution=merge-duplicates,return=representation",
+      },
+      body: JSON.stringify(value),
+    },
+  );
+}
+
 export async function restUpdate<T extends object>(
   table: string,
   filters: Record<string, string>,
