@@ -37,7 +37,7 @@ const initialRows: EmployeeRecord[] = [
   { id: 3, employeeNo: "EMP-1003", name: "حسين عبدالله حسين هزازي", jobTitle: "أمين مستودع", department: "المستودعات", site: "الموقع الرئيسي", gate: "المستودع 1", phone: "05XXXXXXXX", status: "Leave", warnings: 0, absences: 2 },
 ];
 
-const statusLabel: Record<EmployeeStatus, string> = {
+const statusLabel: Record<string, string> = {
   Active: "على رأس العمل",
   Leave: "إجازة",
   Suspended: "موقوف",
@@ -87,7 +87,7 @@ export default function Employees() {
         <Chip
           size="small"
           color={value === "Active" ? "success" : value === "Leave" ? "warning" : "error"}
-          label={statusLabel[value]}
+          label={statusLabel[String(value)] ?? String(value)}
         />
       ),
     },
