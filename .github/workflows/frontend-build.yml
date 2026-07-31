@@ -41,6 +41,9 @@ jobs:
       - name: Lint source
         run: npm run lint
 
+      - name: Test platform foundation
+        run: npm run test:platform
+
       - name: Build frontend
         run: npm run build
 
