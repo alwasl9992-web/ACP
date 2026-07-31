@@ -1,2 +1,37 @@
-node_modules
+# Dependencies and build outputs
+node_modules/
+frontend/node_modules/
+frontend/dist/
+dist/
+coverage/
 
+# Environment files and local secrets
+.env
+.env.*
+!.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Supabase and Vercel local state
+supabase/.temp/
+.branches/
+.vercel/
+
+# Database dumps and encrypted backups
+*.sql.gz
+*.dump
+*.dump.enc
+*.backup
+*.enc
+*.sha256
+
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
