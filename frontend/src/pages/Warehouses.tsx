@@ -1,8 +1,10 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   Box,
   Button,
   Chip,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -15,10 +17,29 @@ import {
 } from "@mui/material";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 
+import { useAuth } from "../auth/AuthContext";
+import { can } from "../auth/authService";
+import { useProject } from "../context/ProjectContext";
+import {
+  createRecord,
+  deleteRecord,
+  listRecords,
+  updateRecord,
+} from "../services/acpRepository";
+import type {
+  PlatformWarehouse,
+  PlatformWarehouseItem,
+} from "../types/platform";
+
 type WarehouseStatus = "Active" | "Limited" | "Closed";
 
+interface CloudWarehouse extends PlatformWarehouse {
+  manager_id: string | null;
+  capacity: number;
+}
+
 interface WarehouseRecord {
-  id: number;
+  id: string;
   code: string;
   name: string;
   location: string;
@@ -29,10 +50,10 @@ interface WarehouseRecord {
   status: WarehouseStatus;
 }
 
-const initialRows: WarehouseRecord[] = [
-  { id: 1, code: "WH-001", name: "المستودع 1", location: "الموقع الرئيسي", manager: "محمد علي", capacity: 1200, occupied: 860, items: 248, status: "Active" },
-  { id: 2, code: "WH-002", name: "المستودع 2", location: "الموقع الرئيسي", manager: "خالد عبدالله", capacity: 900, occupied: 770, items: 196, status: "Limited" },
-  { id: 3, code: "WH-003", name: "المستودع 3", location: "الواحة", manager: "حسين عبدالله", capacity: 650, occupied: 310, items: 114, status: "Active" },
+const demoRows: WarehouseRecord[] = [
+  { id: "demo-1", code: "WH-001", name: "المستودع 1", location: "الموقع الرئيسي", manager: "محمد علي", capacity: 1200, occupied: 860, items: 248, status: "Active" },
+  { id: "demo-2", code: "WH-002", name: "المستودع 2", location: "الموقع الرئيسي", manager: "خالد عبدالله", capacity: 900, occupied: 770, items: 196, status: "Limited" },
+  { id: "demo-3", code: "WH-003", name: "المستودع 3", location: "الواحة", manager: "حسين عبدالله", capacity: 650, occupied: 310, items: 114, status: "Active" },
 ];
 
 const statusLabel: Record<WarehouseStatus, string> = {
@@ -41,92 +62,288 @@ const statusLabel: Record<WarehouseStatus, string> = {
   Closed: "مغلق",
 };
 
+const emptyDraft: Omit<WarehouseRecord, "id" | "occupied" | "items"> = {
+  code: "",
+  name: "",
+  location: "",
+  manager: "",
+  capacity: 0,
+  status: "Active",
+};
+
+function uiStatus(status: PlatformWarehouse["status"], capacity: number, occupied: number): WarehouseStatus {
+  if (status === "archived") return "Closed";
+  if (capacity > 0 && occupied / capacity >= 0.8) return "Limited";
+  return "Active";
+}
+
+function databaseStatus(status: WarehouseStatus): PlatformWarehouse["status"] {
+  return status === "Closed" ? "archived" : "active";
+}
+
 export default function Warehouses() {
-  const [rows, setRows] = useState(initialRows);
+  const { selectedProject } = useProject();
+  const { profile, demoMode } = useAuth();
+  const [rows, setRows] = useState<WarehouseRecord[]>([]);
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState<Omit<WarehouseRecord, "id" | "occupied" | "items">>({
-    code: "",
-    name: "",
-    location: "",
-    manager: "",
-    capacity: 0,
-    status: "Active",
-  });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState(emptyDraft);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const canManage = demoMode || can(profile?.role, "project.manage");
+
+  const loadWarehouses = useCallback(async () => {
+    if (!selectedProject) {
+      setRows([]);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      if (demoMode) {
+        setRows(demoRows);
+        return;
+      }
+
+      const warehouses = await listRecords<CloudWarehouse>("warehouses", {
+        order: "code.asc",
+        filters: { project_id: `eq.${selectedProject.id}` },
+      });
+
+      const items = await listRecords<PlatformWarehouseItem>("warehouse_items", {
+        order: "name.asc",
+        filters: {
+          warehouse_id: warehouses.length
+            ? `in.(${warehouses.map((warehouse) => warehouse.id).join(",")})`
+            : "eq.00000000-0000-0000-0000-000000000000",
+        },
+      });
+
+      const summaries = new Map<string, { occupied: number; items: number }>();
+      items.forEach((item) => {
+        const current = summaries.get(item.warehouse_id) ?? { occupied: 0, items: 0 };
+        current.occupied += Number(item.quantity) || 0;
+        current.items += 1;
+        summaries.set(item.warehouse_id, current);
+      });
+
+      setRows(
+        warehouses.map((warehouse) => {
+          const summary = summaries.get(warehouse.id) ?? { occupied: 0, items: 0 };
+          return {
+            id: warehouse.id,
+            code: warehouse.code,
+            name: warehouse.name,
+            location: warehouse.location ?? "",
+            manager: warehouse.manager_id ? "مستخدم مرتبط" : "غير محدد",
+            capacity: Number(warehouse.capacity) || 0,
+            occupied: summary.occupied,
+            items: summary.items,
+            status: uiStatus(warehouse.status, Number(warehouse.capacity) || 0, summary.occupied),
+          };
+        }),
+      );
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "تعذر تحميل المستودعات.");
+    } finally {
+      setLoading(false);
+    }
+  }, [demoMode, selectedProject]);
+
+  useEffect(() => {
+    void loadWarehouses();
+  }, [loadWarehouses]);
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return rows;
     return rows.filter((row) =>
-      [row.code, row.name, row.location, row.manager].join(" ").toLowerCase().includes(term),
+      [row.code, row.name, row.location, row.manager]
+        .join(" ")
+        .toLowerCase()
+        .includes(term),
     );
   }, [rows, search]);
 
-  const columns: GridColDef<WarehouseRecord>[] = [
-    { field: "code", headerName: "الرمز", minWidth: 110, flex: 0.6 },
-    { field: "name", headerName: "المستودع", minWidth: 170, flex: 1 },
-    { field: "location", headerName: "الموقع", minWidth: 150, flex: 0.9 },
-    { field: "manager", headerName: "المسؤول", minWidth: 150, flex: 0.9 },
-    { field: "capacity", headerName: "السعة", type: "number", minWidth: 100, flex: 0.6 },
-    { field: "occupied", headerName: "المشغول", type: "number", minWidth: 100, flex: 0.6 },
-    { field: "items", headerName: "عدد الأصناف", type: "number", minWidth: 115, flex: 0.7 },
-    {
-      field: "status",
-      headerName: "الحالة",
-      minWidth: 125,
-      flex: 0.7,
-      renderCell: ({ value }) => (
-        <Chip
-          size="small"
-          color={value === "Active" ? "success" : value === "Limited" ? "warning" : "default"}
-          label={statusLabel[value as WarehouseStatus]}
-        />
-      ),
-    },
-  ];
+  const columns = useMemo<GridColDef<WarehouseRecord>[]>(
+    () => [
+      { field: "code", headerName: "الرمز", minWidth: 110, flex: 0.6 },
+      { field: "name", headerName: "المستودع", minWidth: 170, flex: 1 },
+      { field: "location", headerName: "الموقع", minWidth: 150, flex: 0.9 },
+      { field: "manager", headerName: "المسؤول", minWidth: 150, flex: 0.9 },
+      { field: "capacity", headerName: "السعة", type: "number", minWidth: 100, flex: 0.6 },
+      { field: "occupied", headerName: "الرصيد", type: "number", minWidth: 100, flex: 0.6 },
+      { field: "items", headerName: "عدد الأصناف", type: "number", minWidth: 115, flex: 0.7 },
+      {
+        field: "status",
+        headerName: "الحالة",
+        minWidth: 125,
+        flex: 0.7,
+        renderCell: ({ value }) => (
+          <Chip
+            size="small"
+            color={value === "Active" ? "success" : value === "Limited" ? "warning" : "default"}
+            label={statusLabel[value as WarehouseStatus]}
+          />
+        ),
+      },
+      {
+        field: "actions",
+        headerName: "الإجراءات",
+        minWidth: 160,
+        sortable: false,
+        renderCell: ({ row }) =>
+          canManage ? (
+            <Stack direction="row" spacing={1}>
+              <Button size="small" onClick={() => startEdit(row)}>تعديل</Button>
+              <Button size="small" color="error" onClick={() => void removeWarehouse(row)}>حذف</Button>
+            </Stack>
+          ) : null,
+      },
+    ],
+    [canManage],
+  );
 
-  const addWarehouse = () => {
-    if (!draft.code.trim() || !draft.name.trim() || draft.capacity <= 0) return;
-    setRows((current) => [...current, { ...draft, id: Date.now(), occupied: 0, items: 0 }]);
-    setOpen(false);
-    setDraft({ code: "", name: "", location: "", manager: "", capacity: 0, status: "Active" });
+  const startCreate = () => {
+    setEditingId(null);
+    setDraft({ ...emptyDraft, code: `WH-${String(rows.length + 1).padStart(3, "0")}` });
+    setOpen(true);
   };
+
+  const startEdit = (row: WarehouseRecord) => {
+    setEditingId(row.id);
+    setDraft({
+      code: row.code,
+      name: row.name,
+      location: row.location,
+      manager: row.manager === "غير محدد" ? "" : row.manager,
+      capacity: row.capacity,
+      status: row.status,
+    });
+    setOpen(true);
+  };
+
+  const resetDialog = () => {
+    setEditingId(null);
+    setDraft(emptyDraft);
+    setOpen(false);
+  };
+
+  const saveWarehouse = async () => {
+    if (!selectedProject || !draft.code.trim() || !draft.name.trim() || draft.capacity < 0) {
+      setError("رمز المستودع واسمه وسعة صحيحة مطلوبة.");
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    try {
+      if (demoMode) {
+        const existing = rows.find((row) => row.id === editingId);
+        const next: WarehouseRecord = {
+          id: editingId ?? crypto.randomUUID(),
+          code: draft.code.trim(),
+          name: draft.name.trim(),
+          location: draft.location.trim(),
+          manager: draft.manager.trim() || "غير محدد",
+          capacity: Number(draft.capacity) || 0,
+          occupied: existing?.occupied ?? 0,
+          items: existing?.items ?? 0,
+          status: draft.status,
+        };
+        setRows((current) =>
+          editingId
+            ? current.map((row) => (row.id === editingId ? next : row))
+            : [...current, next],
+        );
+      } else {
+        const timestamp = new Date().toISOString();
+        if (editingId) {
+          await updateRecord<CloudWarehouse>("warehouses", editingId, {
+            code: draft.code.trim(),
+            name: draft.name.trim(),
+            location: draft.location.trim() || null,
+            capacity: Number(draft.capacity) || 0,
+            status: databaseStatus(draft.status),
+            updated_at: timestamp,
+          });
+        } else {
+          await createRecord<CloudWarehouse>("warehouses", {
+            project_id: selectedProject.id,
+            code: draft.code.trim(),
+            name: draft.name.trim(),
+            location: draft.location.trim() || null,
+            status: databaseStatus(draft.status),
+            manager_id: null,
+            capacity: Number(draft.capacity) || 0,
+            created_at: timestamp,
+            updated_at: timestamp,
+          });
+        }
+      }
+
+      resetDialog();
+      if (!demoMode) await loadWarehouses();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "تعذر حفظ المستودع.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeWarehouse = async (row: WarehouseRecord) => {
+    if (!window.confirm(`حذف المستودع: ${row.name}؟`)) return;
+    try {
+      if (demoMode) setRows((current) => current.filter((item) => item.id !== row.id));
+      else await deleteRecord("warehouses", row.id);
+      if (!demoMode) await loadWarehouses();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "تعذر حذف المستودع.");
+    }
+  };
+
+  if (!selectedProject) {
+    return <Alert severity="info">اختر مشروعًا أولًا لعرض المستودعات.</Alert>;
+  }
 
   return (
     <Box dir="rtl">
       <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={2} sx={{ mb: 3 }}>
         <Box>
           <Typography variant="h4" fontWeight={800}>إدارة المستودعات</Typography>
-          <Typography color="text.secondary">متابعة السعة والمخزون والمسؤولين وحالة كل مستودع.</Typography>
+          <Typography color="text.secondary">السعة والمخزون والمسؤولون ضمن {selectedProject.name}.</Typography>
         </Box>
-        <Button variant="contained" onClick={() => setOpen(true)}>إضافة مستودع</Button>
+        {canManage && <Button variant="contained" onClick={startCreate}>إضافة مستودع</Button>}
       </Stack>
+
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
       <Paper sx={{ p: 2, mb: 2, borderRadius: 3 }}>
         <TextField fullWidth size="small" label="بحث بالرمز أو الاسم أو المسؤول" value={search} onChange={(event) => setSearch(event.target.value)} />
       </Paper>
 
       <Paper sx={{ height: 560, borderRadius: 3, overflow: "hidden" }}>
-        <DataGrid
-          rows={filteredRows}
-          columns={columns}
-          disableRowSelectionOnClick
-          pageSizeOptions={[10, 25, 50]}
-          initialState={{ pagination: { paginationModel: { pageSize: 10, page: 0 } } }}
-          sx={{ border: 0, direction: "rtl" }}
-        />
+        {loading ? (
+          <Box sx={{ height: "100%", display: "grid", placeItems: "center" }}><CircularProgress /></Box>
+        ) : (
+          <DataGrid rows={filteredRows} columns={columns} disableRowSelectionOnClick pageSizeOptions={[10, 25, 50]} initialState={{ pagination: { paginationModel: { pageSize: 10, page: 0 } } }} sx={{ border: 0, direction: "rtl" }} />
+        )}
       </Paper>
 
-      <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm" dir="rtl">
-        <DialogTitle>إضافة مستودع جديد</DialogTitle>
+      <Dialog open={open} onClose={resetDialog} fullWidth maxWidth="sm" dir="rtl">
+        <DialogTitle>{editingId ? "تعديل المستودع" : "إضافة مستودع"}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField label="رمز المستودع" value={draft.code} onChange={(e) => setDraft({ ...draft, code: e.target.value })} />
-            <TextField label="اسم المستودع" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
-            <TextField label="الموقع" value={draft.location} onChange={(e) => setDraft({ ...draft, location: e.target.value })} />
-            <TextField label="المسؤول" value={draft.manager} onChange={(e) => setDraft({ ...draft, manager: e.target.value })} />
-            <TextField type="number" label="السعة" value={draft.capacity} onChange={(e) => setDraft({ ...draft, capacity: Number(e.target.value) })} />
-            <TextField select label="الحالة" value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value as WarehouseStatus })}>
+            <TextField label="رمز المستودع" value={draft.code} onChange={(event) => setDraft({ ...draft, code: event.target.value })} />
+            <TextField label="اسم المستودع" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
+            <TextField label="الموقع" value={draft.location} onChange={(event) => setDraft({ ...draft, location: event.target.value })} />
+            <TextField label="المسؤول (وصف مؤقت)" value={draft.manager} onChange={(event) => setDraft({ ...draft, manager: event.target.value })} />
+            <TextField type="number" label="السعة" value={draft.capacity} onChange={(event) => setDraft({ ...draft, capacity: Number(event.target.value) })} />
+            <TextField select label="الحالة" value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value as WarehouseStatus })}>
               <MenuItem value="Active">متاح</MenuItem>
               <MenuItem value="Limited">قرب الامتلاء</MenuItem>
               <MenuItem value="Closed">مغلق</MenuItem>
@@ -134,8 +351,10 @@ export default function Warehouses() {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpen(false)}>إلغاء</Button>
-          <Button variant="contained" onClick={addWarehouse}>حفظ</Button>
+          <Button onClick={resetDialog}>إلغاء</Button>
+          <Button variant="contained" onClick={() => void saveWarehouse()} disabled={saving}>
+            {saving ? <CircularProgress size={22} color="inherit" /> : "حفظ"}
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>
