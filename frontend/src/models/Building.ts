@@ -31,7 +31,7 @@ export interface Building {
   criticality: "Low" | "Medium" | "High" | "Critical";
 
   // الحالة
-  status: "Running" | "Maintenance" | "Stopped" | "Completed";
+  status: "Running" | "Maintenance" | "Stopped";
 
   // التتبع
   qrCode: string;
