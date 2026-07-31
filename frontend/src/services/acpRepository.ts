@@ -16,6 +16,7 @@ import {
 export type AcpTable =
   | "projects"
   | "buildings"
+  | "assets"
   | "gates"
   | "employees"
   | "warehouses"
