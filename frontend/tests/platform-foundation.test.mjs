@@ -26,7 +26,10 @@ test("core migration defines all required business tables", async () => {
     "audit_logs",
   ]) {
     assert.match(sql, new RegExp(`create table public\\.${table}\\b`, "i"));
-    assert.match(sql, new RegExp(`alter table public\\.${table} enable row level security`, "i"));
+    assert.match(
+      sql,
+      new RegExp(`alter table public\\.${table} enable row level security`, "i"),
+    );
   }
 });
 
@@ -35,6 +38,32 @@ test("assets migration enables RLS and audit", async () => {
   assert.match(sql, /create table public\.assets/i);
   assert.match(sql, /alter table public\.assets enable row level security/i);
   assert.match(sql, /create trigger assets_audit/i);
+});
+
+test("operations migration protects gate logs and employee records", async () => {
+  const sql = await read("supabase/migrations/20260731153000_acp_operations.sql");
+  for (const table of [
+    "gate_daily_logs",
+    "employee_assignments",
+    "attendance_events",
+    "employee_warnings",
+  ]) {
+    assert.match(sql, new RegExp(`create table public\\.${table}\\b`, "i"));
+    assert.match(
+      sql,
+      new RegExp(`alter table public\\.${table} enable row level security`, "i"),
+    );
+  }
+});
+
+test("system settings are singleton and admin-managed", async () => {
+  const sql = await read(
+    "supabase/migrations/20260731160000_acp_system_settings.sql",
+  );
+  assert.match(sql, /create table public\.system_settings/i);
+  assert.match(sql, /create unique index system_settings_singleton_idx/i);
+  assert.match(sql, /current_app_role\(\) = 'system_admin'/i);
+  assert.match(sql, /enable row level security/i);
 });
 
 test("browser environment template never contains privileged secrets", async () => {
@@ -62,4 +91,12 @@ test("role model includes the five approved roles", async () => {
   ]) {
     assert.match(source, new RegExp(`"${role}"`));
   }
+});
+
+test("user invitations require authenticated system administrator", async () => {
+  const source = await read("supabase/functions/invite-user/index.ts");
+  assert.match(source, /auth\.getUser\(\)/);
+  assert.match(source, /callerProfile\.role !== "system_admin"/);
+  assert.match(source, /inviteUserByEmail/);
+  assert.doesNotMatch(source, /VITE_/);
 });
