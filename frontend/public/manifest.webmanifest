@@ -1,0 +1,13 @@
+{
+  "name": "ACP Enterprise",
+  "short_name": "ACP",
+  "description": "منصة إدارة المشاريع والتشغيل والأصول",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#071b34",
+  "theme_color": "#071b34",
+  "categories": ["business", "productivity"]
+}

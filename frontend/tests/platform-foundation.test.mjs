@@ -85,11 +85,45 @@ test("browser environment template never contains privileged secrets", async () 
   assert.match(env, /VITE_SUPABASE_ANON_KEY/);
 });
 
-test("offline synchronization uses IndexedDB and idempotent UUIDs", async () => {
+test("offline synchronization uses mutations, query cache and optimistic overlays", async () => {
   const source = await read("frontend/src/offline/offlineQueue.ts");
   assert.match(source, /indexedDB\.open/);
   assert.match(source, /crypto\.randomUUID/);
   assert.match(source, /offline-mutations/);
+  assert.match(source, /query-cache/);
+  assert.match(source, /cacheQueryRows/);
+  assert.match(source, /overlayQueuedMutations/);
+});
+
+test("repository falls back to cached rows when offline", async () => {
+  const source = await read("frontend/src/services/acpRepository.ts");
+  assert.match(source, /readCachedQueryRows/);
+  assert.match(source, /if \(!isOnline\(\)\) return readOffline\(\)/);
+  assert.match(source, /overlayQueuedMutations/);
+  assert.match(source, /clearQueryCache/);
+});
+
+test("offline authentication requires a recently verified active profile", async () => {
+  const source = await read("frontend/src/auth/authService.ts");
+  assert.match(source, /OFFLINE_PROFILE_MAX_AGE_MS/);
+  assert.match(source, /loadVerifiedOfflineProfile/);
+  assert.match(source, /!cached\.profile\.is_active/);
+  assert.match(source, /age > OFFLINE_PROFILE_MAX_AGE_MS/);
+});
+
+test("production app shell is installable and never caches API calls", async () => {
+  const worker = await read("frontend/public/sw.js");
+  const manifest = await read("frontend/public/manifest.webmanifest");
+  const registration = await read(
+    "frontend/src/offline/registerServiceWorker.ts",
+  );
+  assert.match(worker, /caches\.open/);
+  assert.match(worker, /request\.method !== "GET"/);
+  assert.match(worker, /url\.pathname\.startsWith\("\/auth\/"\)/);
+  assert.match(worker, /url\.pathname\.startsWith\("\/rest\/"\)/);
+  assert.match(worker, /url\.pathname\.startsWith\("\/functions\/"\)/);
+  assert.match(manifest, /"display": "standalone"/);
+  assert.match(registration, /navigator\.serviceWorker\.register/);
 });
 
 test("role model includes the five approved roles", async () => {
