@@ -14,6 +14,8 @@ import {
 } from "../offline/offlineQueue";
 
 export type AcpTable =
+  | "profiles"
+  | "system_settings"
   | "projects"
   | "buildings"
   | "assets"
