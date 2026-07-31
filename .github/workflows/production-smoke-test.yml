@@ -1,0 +1,82 @@
+name: Production Smoke Test
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  VITE_APP_URL: ${{ secrets.VITE_APP_URL }}
+  VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+  VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+concurrency:
+  group: production-smoke-test
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.ACP_PRODUCTION_MONITORING_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 8
+
+    steps:
+      - name: Validate monitoring configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          for variable in VITE_APP_URL VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY; do
+            if [[ -z "${!variable:-}" ]]; then
+              echo "Missing required secret: $variable" >&2
+              exit 1
+            fi
+          done
+
+      - name: Verify production application and security headers
+        shell: bash
+        run: |
+          set -euo pipefail
+          headers="$(mktemp)"
+          body="$(mktemp)"
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --location \
+            --retry 4 \
+            --retry-all-errors \
+            --connect-timeout 10 \
+            --max-time 30 \
+            --dump-header "$headers" \
+            --output "$body" \
+            "$VITE_APP_URL"
+
+          grep -qi '^strict-transport-security:' "$headers"
+          grep -qi '^content-security-policy:' "$headers"
+          grep -qi '^x-content-type-options:[[:space:]]*nosniff' "$headers"
+          grep -qi '^x-frame-options:[[:space:]]*DENY' "$headers"
+          grep -qi 'id="root"' "$body"
+
+      - name: Verify installable offline shell
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 3 "$VITE_APP_URL/manifest.webmanifest" | grep -q '"display"'
+          curl --fail --silent --show-error --retry 3 "$VITE_APP_URL/sw.js" | grep -q 'acp-shell-v1'
+
+      - name: Verify Supabase authentication health
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --retry 4 \
+            --header "apikey: $VITE_SUPABASE_ANON_KEY" \
+            "$VITE_SUPABASE_URL/auth/v1/health" \
+            | grep -q '"version"'
