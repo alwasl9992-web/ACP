@@ -3,7 +3,8 @@ name: Frontend Build Validation
 on:
   push:
     branches:
-      - feature/buildings-assets
+      - main
+      - chore/post-merge-validation
   pull_request:
     branches:
       - main
