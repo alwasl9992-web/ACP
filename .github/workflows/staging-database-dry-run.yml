@@ -1,11 +1,11 @@
 name: Staging Database Dry Run
 
 on:
-  push:
+  pull_request:
     branches:
       - main
     paths:
-      - ".github/workflows/staging-database-dry-run.yml"
+      - ".github/staging-dry-run.trigger"
 
 permissions:
   contents: read
@@ -53,5 +53,3 @@ jobs:
 
       - name: Preview pending migrations
         run: supabase db push --dry-run
-
-# One-time staging verification trigger
