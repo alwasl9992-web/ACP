@@ -1,0 +1,118 @@
+name: Staging Database Control
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "Choose the staging database operation"
+        required: true
+        default: status
+        type: choice
+        options:
+          - status
+          - repair-history
+          - dry-run
+          - push
+      confirmation:
+        description: "Type REPAIR-STAGING or PUSH-STAGING for protected operations"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+  SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+concurrency:
+  group: staging-database-control
+  cancel-in-progress: false
+
+jobs:
+  staging_database:
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 15
+    steps:
+      - name: Validate protected operation
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          missing=()
+          required=(SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_ID SUPABASE_DB_PASSWORD)
+          for variable in "${required[@]}"; do
+            if [[ -z "${!variable:-}" ]]; then
+              missing+=("$variable")
+            fi
+          done
+
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing required staging secrets: %s\n' "${missing[*]}" >&2
+            exit 1
+          fi
+
+          case "${{ inputs.operation }}" in
+            repair-history)
+              [[ "${{ inputs.confirmation }}" == "REPAIR-STAGING" ]] || {
+                echo "repair-history requires confirmation REPAIR-STAGING" >&2
+                exit 1
+              }
+              ;;
+            push)
+              [[ "${{ inputs.confirmation }}" == "PUSH-STAGING" ]] || {
+                echo "push requires confirmation PUSH-STAGING" >&2
+                exit 1
+              }
+              ;;
+          esac
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link staging Supabase project
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase link \
+            --project-ref "$SUPABASE_PROJECT_ID" \
+            --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Show migration status before operation
+        run: supabase migration list --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Repair manually applied migration history
+        if: ${{ inputs.operation == 'repair-history' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase migration repair \
+            20260731143000 \
+            20260731150000 \
+            20260731153000 \
+            20260731154500 \
+            20260731160000 \
+            20260731161000 \
+            20260731163000 \
+            --status applied \
+            --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Preview pending migrations
+        if: ${{ inputs.operation == 'dry-run' }}
+        run: supabase db push --dry-run --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Push pending migrations
+        if: ${{ inputs.operation == 'push' }}
+        run: supabase db push --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Show migration status after operation
+        if: ${{ inputs.operation != 'status' }}
+        run: supabase migration list --password "$SUPABASE_DB_PASSWORD"
