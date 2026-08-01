@@ -24,8 +24,8 @@ permissions:
 
 env:
   SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-  SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
   SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+  VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
 
 concurrency:
   group: staging-database-control
@@ -41,34 +41,37 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           missing=()
-          required=(SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_ID SUPABASE_DB_PASSWORD)
+          required=(SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD VITE_SUPABASE_URL)
           for variable in "${required[@]}"; do
             if [[ -z "${!variable:-}" ]]; then
               missing+=("$variable")
             fi
           done
-
           if (( ${#missing[@]} > 0 )); then
             printf 'Missing required staging secrets: %s\n' "${missing[*]}" >&2
             exit 1
           fi
-
           case "${{ inputs.operation }}" in
             repair-history)
-              [[ "${{ inputs.confirmation }}" == "REPAIR-STAGING" ]] || {
-                echo "repair-history requires confirmation REPAIR-STAGING" >&2
-                exit 1
-              }
+              [[ "${{ inputs.confirmation }}" == "REPAIR-STAGING" ]] || { echo "repair-history requires confirmation REPAIR-STAGING" >&2; exit 1; }
               ;;
             push)
-              [[ "${{ inputs.confirmation }}" == "PUSH-STAGING" ]] || {
-                echo "push requires confirmation PUSH-STAGING" >&2
-                exit 1
-              }
+              [[ "${{ inputs.confirmation }}" == "PUSH-STAGING" ]] || { echo "push requires confirmation PUSH-STAGING" >&2; exit 1; }
               ;;
           esac
+
+      - name: Resolve staging project reference from URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          project_ref="${VITE_SUPABASE_URL#https://}"
+          project_ref="${project_ref%%.supabase.co*}"
+          if [[ ! "$project_ref" =~ ^[a-z0-9]{20}$ ]]; then
+            echo "VITE_SUPABASE_URL does not contain a valid 20-character Supabase project reference" >&2
+            exit 1
+          fi
+          echo "SUPABASE_PROJECT_REF=$project_ref" >> "$GITHUB_ENV"
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -83,7 +86,7 @@ jobs:
         run: |
           set -euo pipefail
           supabase link \
-            --project-ref "$SUPABASE_PROJECT_ID" \
+            --project-ref "$SUPABASE_PROJECT_REF" \
             --password "$SUPABASE_DB_PASSWORD"
 
       - name: Show migration status before operation
