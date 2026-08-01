@@ -53,3 +53,5 @@ jobs:
 
       - name: Preview pending migrations
         run: supabase db push --dry-run
+
+# One-time staging verification trigger
