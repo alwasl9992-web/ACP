@@ -71,7 +71,7 @@ jobs:
 
   staging_acceptance:
     name: Live Staging acceptance
-    if: github.event_name == 'workflow_dispatch'
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
     needs:
       - source_quality
       - database_quality
