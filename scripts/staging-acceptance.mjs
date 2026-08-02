@@ -88,10 +88,14 @@ try {
   });
 
   await test("Anonymous profile isolation", async () => {
-    const { payload } = await api("/rest/v1/profiles?select=id&limit=1", {
-      bearer: key,
-    });
-    assert.deepEqual(payload, []);
+    const { response, payload } = await api(
+      "/rest/v1/profiles?select=id&limit=1",
+      {
+        bearer: key,
+        statuses: [200, 401, 403],
+      },
+    );
+    if (response.status === 200) assert.deepEqual(payload, []);
   });
 
   await test("Anonymous project write denied", async () => {
