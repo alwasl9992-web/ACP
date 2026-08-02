@@ -79,7 +79,7 @@ jobs:
     environment: staging
     timeout-minutes: 12
     env:
-      STAGING_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      STAGING_SUPABASE_URL: https://jvxodxfheftylolhqoip.supabase.co
       STAGING_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
       STAGING_ADMIN_EMAIL: ${{ secrets.STAGING_ADMIN_EMAIL }}
       STAGING_ADMIN_PASSWORD: ${{ secrets.STAGING_ADMIN_PASSWORD }}
