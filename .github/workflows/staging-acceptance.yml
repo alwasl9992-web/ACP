@@ -1,0 +1,110 @@
+name: Staging Acceptance Gate
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "frontend/**"
+      - "supabase/**"
+      - "scripts/staging-acceptance.mjs"
+      - ".github/workflows/staging-acceptance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source_quality:
+    name: Frontend quality gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install pinned frontend dependencies
+        run: npm install --no-audit --no-fund
+      - name: Run lint, platform tests, build and production audit
+        run: |
+          set -euo pipefail
+          npm run lint
+          npm run test:platform
+          npm run build
+          npm audit --omit=dev --audit-level=high
+      - name: Validate acceptance script syntax
+        working-directory: .
+        run: node --check scripts/staging-acceptance.mjs
+
+  database_quality:
+    name: Database rebuild, lint and pgTAP
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start local Supabase stack
+        run: supabase start
+      - name: Rebuild database from migrations
+        run: supabase db reset
+      - name: Lint database schema
+        run: supabase db lint --level warning
+      - name: Run pgTAP security tests
+        run: supabase test db
+      - name: Stop local Supabase stack
+        if: always()
+        run: supabase stop --no-backup
+
+  staging_acceptance:
+    name: Live Staging acceptance
+    if: github.event_name == 'workflow_dispatch'
+    needs:
+      - source_quality
+      - database_quality
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 12
+    env:
+      STAGING_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      STAGING_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      STAGING_ADMIN_EMAIL: ${{ secrets.STAGING_ADMIN_EMAIL }}
+      STAGING_ADMIN_PASSWORD: ${{ secrets.STAGING_ADMIN_PASSWORD }}
+      STAGING_APP_URL: ${{ secrets.STAGING_APP_URL }}
+      STAGING_SUPABASE_PROJECT_REF: jvxodxfheftylolhqoip
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Validate staging secret configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          for variable in STAGING_SUPABASE_URL STAGING_SUPABASE_ANON_KEY STAGING_ADMIN_EMAIL STAGING_ADMIN_PASSWORD; do
+            if [[ -z "${!variable:-}" ]]; then
+              missing+=("$variable")
+            fi
+          done
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing required staging secrets: %s\n' "${missing[*]}" >&2
+            exit 1
+          fi
+      - name: Run live staging acceptance suite
+        run: node scripts/staging-acceptance.mjs
