@@ -82,14 +82,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = useCallback(
     async (email: string, password: string) => {
-      setLoading(true);
-      try {
-        const nextSession = await signInWithPassword(email, password);
-        setSession(nextSession);
-        await loadProfile(nextSession);
-      } finally {
-        setLoading(false);
-      }
+      const nextSession = await signInWithPassword(email, password);
+      setSession(nextSession);
+      await loadProfile(nextSession);
     },
     [loadProfile],
   );
