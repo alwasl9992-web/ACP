@@ -102,6 +102,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
       - name: Validate staging secret configuration
         shell: bash
         run: |
@@ -116,6 +120,8 @@ jobs:
             printf 'Missing required staging secrets: %s\n' "${missing[*]}" >&2
             exit 1
           fi
+      - name: Deploy Staging QR Edge Function
+        run: supabase functions deploy report-qr --project-ref "$STAGING_SUPABASE_PROJECT_REF"
       - name: Reconcile Staging System Admin
         run: node scripts/reconcile-staging-admin.mjs
       - name: Run live staging acceptance suite
