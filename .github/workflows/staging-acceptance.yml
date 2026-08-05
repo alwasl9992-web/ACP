@@ -1,4 +1,5 @@
 # Validates the latest Staging admin reconciliation and login-state fixes.
+# Retriggered after the protected reconciliation path was corrected.
 name: Staging Acceptance Gate
 
 on:
