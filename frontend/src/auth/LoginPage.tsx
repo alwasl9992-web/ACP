@@ -5,9 +5,12 @@ import {
   Button,
   CircularProgress,
   Paper,
+  Stack,
   TextField,
   Typography,
 } from "@mui/material";
+import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
+import BrandMark from "../components/BrandMark";
 import { useAuth } from "./AuthContext";
 
 function loginErrorMessage(reason: unknown): string {
@@ -74,35 +77,36 @@ export default function LoginPage() {
         minHeight: "100vh",
         display: "grid",
         placeItems: "center",
-        bgcolor: "#06172d",
         direction: "rtl",
-        p: 3,
+        p: { xs: 2, sm: 4 },
+        bgcolor: "#EEF3F8",
+        backgroundImage:
+          "radial-gradient(circle at 85% 15%, rgba(201,162,39,.16), transparent 28%), radial-gradient(circle at 15% 85%, rgba(11,49,91,.10), transparent 32%)",
       }}
     >
       <Paper
         component="form"
         onSubmit={submit}
         noValidate
-        elevation={12}
+        elevation={0}
         sx={{
           width: "100%",
-          maxWidth: 440,
+          maxWidth: 470,
           p: { xs: 3, sm: 5 },
-          borderTop: "5px solid #c9a227",
-          borderRadius: 3,
+          border: "1px solid",
+          borderColor: "divider",
+          borderTop: "5px solid #C9A227",
+          borderRadius: 4,
+          boxShadow: "0 24px 64px rgba(7,27,52,.12)",
         }}
       >
-        <Typography
-          variant="overline"
-          sx={{ color: "#9a7a18", fontWeight: 800, letterSpacing: 1 }}
-        >
-          ACP ENTERPRISE
-        </Typography>
-        <Typography variant="h4" sx={{ color: "#071b34", fontWeight: 800, mt: 1 }}>
+        <BrandMark />
+
+        <Typography variant="h4" sx={{ color: "primary.main", mt: 4 }}>
           تسجيل الدخول
         </Typography>
         <Typography color="text.secondary" sx={{ mt: 1, mb: 3 }}>
-          الدخول إلى منصة إدارة المشاريع والتشغيل والأصول
+          ادخل إلى بيئة العمل المحمية لإدارة المشاريع والتشغيل والأصول.
         </Typography>
 
         {error && (
@@ -137,14 +141,18 @@ export default function LoginPage() {
           size="large"
           fullWidth
           disabled={busy}
-          sx={{
-            minHeight: 48,
-            bgcolor: "#071b34",
-            "&:hover": { bgcolor: "#0b315b" },
-          }}
+          startIcon={!busy ? <ShieldOutlinedIcon /> : undefined}
+          sx={{ minHeight: 50 }}
         >
           {busy ? <CircularProgress size={24} color="inherit" /> : "دخول آمن"}
         </Button>
+
+        <Stack direction="row" spacing={1} alignItems="center" justifyContent="center" sx={{ mt: 3 }}>
+          <ShieldOutlinedIcon sx={{ fontSize: 17, color: "success.main" }} />
+          <Typography variant="caption" color="text.secondary">
+            اتصال مشفر وصلاحيات محكومة وسياسات وصول على مستوى الصفوف
+          </Typography>
+        </Stack>
       </Paper>
     </Box>
   );

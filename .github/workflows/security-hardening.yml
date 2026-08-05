@@ -1,0 +1,65 @@
+name: Security Hardening Gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 2 * * 1"
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: security-hardening-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  codeql:
+    name: CodeQL JavaScript and TypeScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+      - uses: github/codeql-action/analyze@v3
+
+  dependency-and-secret-safety:
+    name: Dependency and browser-secret safety
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install frontend dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Reject high or critical production vulnerabilities
+        run: npm audit --omit=dev --audit-level=high
+      - name: Reject privileged credentials in browser source
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RInE --exclude='*.test.*' --exclude='.env.example' \
+            '(service[_-]?role|SUPABASE_DB_PASSWORD|DATABASE_URL|SUPABASE_ACCESS_TOKEN|VERCEL_TOKEN|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY)' \
+            src public; then
+            echo "Privileged credential marker found in browser-delivered files."
+            exit 1
+          fi
+      - name: Verify production security headers remain configured
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'Content-Security-Policy' vercel.json
+          grep -q 'Strict-Transport-Security' vercel.json
+          grep -q 'frame-ancestors' vercel.json
+          grep -q 'X-Content-Type-Options' vercel.json

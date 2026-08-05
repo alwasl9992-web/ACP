@@ -1,13 +1,21 @@
 {
   "name": "ACP Enterprise",
   "short_name": "ACP",
-  "description": "منصة إدارة المشاريع والتشغيل والأصول",
+  "description": "منصة احترافية لإدارة المشاريع والتشغيل والأصول",
   "lang": "ar",
   "dir": "rtl",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#071b34",
-  "theme_color": "#071b34",
-  "categories": ["business", "productivity"]
+  "background_color": "#F4F7FB",
+  "theme_color": "#071B34",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/acp-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
 }
