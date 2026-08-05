@@ -1,4 +1,5 @@
 import { runtimeConfig } from "../config/runtime";
+import { supabaseBlobRequest } from "../lib/supabaseHttp";
 
 export interface ReportColumn<T extends object> {
   key: keyof T;
@@ -55,10 +56,22 @@ export function buildVerificationPayload(reportNo: string, path?: string): strin
   return `${runtimeConfig.appUrl}${targetPath}`;
 }
 
+function buildQrFunctionPath(payload: string): string {
+  const query = new URLSearchParams({ data: payload, format: "svg" });
+  return `/functions/v1/report-qr?${query.toString()}`;
+}
+
 export function buildQrImageUrl(payload: string): string | null {
   if (!runtimeConfig.configured) return null;
-  const query = new URLSearchParams({ data: payload, format: "svg" });
-  return `${runtimeConfig.supabaseUrl}/functions/v1/report-qr?${query.toString()}`;
+  return `${runtimeConfig.supabaseUrl}${buildQrFunctionPath(payload)}`;
+}
+
+export async function loadProtectedQrObjectUrl(payload: string): Promise<string> {
+  const blob = await supabaseBlobRequest(buildQrFunctionPath(payload), { method: "GET" });
+  if (!blob.type.includes("svg") && !blob.type.startsWith("image/")) {
+    throw new Error("استجابة QR ليست صورة صالحة.");
+  }
+  return URL.createObjectURL(blob);
 }
 
 export function exportReportToExcel<T extends object>(definition: ReportDefinition<T>): void {
@@ -67,9 +80,7 @@ export function exportReportToExcel<T extends object>(definition: ReportDefiniti
     .map((column) => `<Cell ss:StyleID="Header"><Data ss:Type="String">${escapeXml(column.label)}</Data></Cell>`)
     .join("");
   const rows = definition.rows
-    .map((row) => `<Row>${definition.columns
-      .map((column) => `<Cell ss:StyleID="Body"><Data ss:Type="String">${escapeXml(formatCell(column, row))}</Data></Cell>`)
-      .join("")}</Row>`)
+    .map((row) => `<Row>${definition.columns.map((column) => `<Cell ss:StyleID="Body"><Data ss:Type="String">${escapeXml(formatCell(column, row))}</Data></Cell>`).join("")}</Row>`)
     .join("");
   const metadataRows = [
     ["رقم التقرير", definition.reportNo],
@@ -101,49 +112,51 @@ export function exportReportToExcel<T extends object>(definition: ReportDefiniti
   downloadBlob(new Blob([xml], { type: "application/vnd.ms-excel;charset=utf-8" }), `${definition.reportNo}.xls`);
 }
 
-function printableHtml<T extends object>(definition: ReportDefinition<T>): string {
+function printableHtml<T extends object>(definition: ReportDefinition<T>, qrObjectUrl: string | null): string {
   const generatedAt = definition.generatedAt ?? new Date();
   const verificationPayload = buildVerificationPayload(definition.reportNo, definition.verificationPath);
-  const qrImageUrl = buildQrImageUrl(verificationPayload);
   const headerCells = definition.columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join("");
   const bodyRows = definition.rows.length > 0
     ? definition.rows.map((row, index) => `<tr><td class="index">${index + 1}</td>${definition.columns.map((column) => `<td>${escapeHtml(formatCell(column, row))}</td>`).join("")}</tr>`).join("")
     : `<tr><td colspan="${definition.columns.length + 1}" class="empty">لا توجد سجلات ضمن هذا التقرير.</td></tr>`;
+  const brandMark = `${runtimeConfig.appUrl}/acp-mark.svg`;
 
-  return `<!doctype html>
-<html lang="ar" dir="rtl"><head><meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>${escapeHtml(definition.reportNo)} — ${escapeHtml(definition.title)}</title>
-<style>
-@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;font-family:Tahoma,Arial,sans-serif;color:#10243e;background:#eef3f8;direction:rtl}.toolbar{position:sticky;top:0;z-index:3;padding:12px;text-align:center;background:#eef3f8}.toolbar button{background:#071b34;color:#fff;border:0;border-radius:9px;padding:11px 22px;font-weight:700;font-size:14px}.report{width:min(100%,210mm);margin:0 auto 24px;background:#fff;border:1px solid #d4dbe5;min-height:270mm;position:relative;padding-bottom:22mm;box-shadow:0 18px 45px rgba(7,27,52,.10)}.header{background:#071b34;color:#fff;padding:20px 22px;border-bottom:5px solid #c9a227}.brand{display:flex;align-items:center;justify-content:space-between;gap:16px}.brand-lockup{display:flex;align-items:center;gap:10px}.brand-lockup img{width:48px;height:48px}.brand strong{color:#e7ca70;font-size:20px;letter-spacing:.5px}.brand span{font-size:11px;opacity:.82}h1{margin:16px 0 4px;font-size:24px}.subtitle{margin:0;color:#d9e3ef;font-size:13px}.meta{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:14px 20px;background:#f3f6fa;border-bottom:1px solid #d4dbe5}.meta div{background:#fff;border:1px solid #dce2ea;padding:9px;border-radius:7px}.meta b{color:#826817;display:block;font-size:11px;margin-bottom:4px}.content{padding:18px 20px;overflow:auto}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0b315b;color:#fff;padding:8px;border:1px solid #274c73}td{padding:7px;border:1px solid #d8dee7;vertical-align:top}tr:nth-child(even) td{background:#f8fafc}.index{width:34px;text-align:center;font-weight:bold;color:#826817}.empty{text-align:center;padding:28px;color:#617087}.approval{margin-top:16px;border:1px solid #c9a227;padding:12px;display:flex;justify-content:space-between;align-items:center;gap:16px}.verification{display:flex;align-items:center;gap:10px;max-width:65%;overflow-wrap:anywhere;font-size:9px}.verification img{width:78px;height:78px;object-fit:contain}.footer{position:absolute;right:20px;left:20px;bottom:10px;border-top:1px solid #d8dee7;padding-top:8px;display:flex;justify-content:space-between;color:#5d6b7d;font-size:9px}@media(max-width:700px){body{background:#fff}.report{border:0;box-shadow:none;margin:0;min-height:100vh}.meta{grid-template-columns:1fr 1fr}.content{padding:12px}.approval{align-items:flex-start;flex-direction:column}.verification{max-width:100%}}@media print{body{background:#fff}.toolbar{display:none}.report{border:0;box-shadow:none;margin:0;width:100%}}
-</style></head><body>
-<div class="toolbar"><button type="button" onclick="window.print()">طباعة / حفظ PDF</button></div>
-<section class="report"><header class="header"><div class="brand"><div class="brand-lockup"><img src="/acp-mark.svg" alt="ACP"/><div><strong>ACP ENTERPRISE</strong><br/><span>إدارة المشاريع والتشغيل والأصول</span></div></div><span>وثيقة تشغيلية موثقة</span></div><h1>${escapeHtml(definition.title)}</h1><p class="subtitle">${escapeHtml(definition.subtitle ?? "تقرير رسمي")}</p></header>
+  return `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>${escapeHtml(definition.reportNo)} — ${escapeHtml(definition.title)}</title>
+<style>@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;font-family:Tahoma,Arial,sans-serif;color:#10243e;background:#eef3f8;direction:rtl}.toolbar{position:sticky;top:0;z-index:3;padding:12px;text-align:center;background:#eef3f8}.toolbar button{background:#071b34;color:#fff;border:0;border-radius:9px;padding:11px 22px;font-weight:700}.report{width:min(100%,210mm);margin:0 auto 24px;background:#fff;border:1px solid #d4dbe5;min-height:270mm;position:relative;padding-bottom:22mm;box-shadow:0 18px 45px rgba(7,27,52,.10)}.header{background:#071b34;color:#fff;padding:20px 22px;border-bottom:5px solid #c9a227}.brand{display:flex;align-items:center;justify-content:space-between;gap:16px}.brand-lockup{display:flex;align-items:center;gap:10px}.brand-lockup img{width:48px;height:48px}.brand strong{color:#e7ca70;font-size:20px}.brand span{font-size:11px;opacity:.82}h1{margin:16px 0 4px;font-size:24px}.subtitle{margin:0;color:#d9e3ef;font-size:13px}.meta{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:14px 20px;background:#f3f6fa;border-bottom:1px solid #d4dbe5}.meta div{background:#fff;border:1px solid #dce2ea;padding:9px;border-radius:7px}.meta b{color:#826817;display:block;font-size:11px;margin-bottom:4px}.content{padding:18px 20px;overflow:auto}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0b315b;color:#fff;padding:8px;border:1px solid #274c73}td{padding:7px;border:1px solid #d8dee7;vertical-align:top}tr:nth-child(even) td{background:#f8fafc}.index{width:34px;text-align:center;font-weight:bold;color:#826817}.empty{text-align:center;padding:28px;color:#617087}.approval{margin-top:16px;border:1px solid #c9a227;padding:12px;display:flex;justify-content:space-between;align-items:center;gap:16px}.verification{display:flex;align-items:center;gap:10px;max-width:65%;overflow-wrap:anywhere;font-size:9px}.verification img{width:78px;height:78px;object-fit:contain}.qr-note{color:#7a5b00}.footer{position:absolute;right:20px;left:20px;bottom:10px;border-top:1px solid #d8dee7;padding-top:8px;display:flex;justify-content:space-between;color:#5d6b7d;font-size:9px}@media(max-width:700px){body{background:#fff}.report{border:0;box-shadow:none;margin:0;min-height:100vh}.meta{grid-template-columns:1fr 1fr}.content{padding:12px}.approval{align-items:flex-start;flex-direction:column}.verification{max-width:100%}}@media print{body{background:#fff}.toolbar{display:none}.report{border:0;box-shadow:none;margin:0;width:100%}}</style></head><body>
+<div class="toolbar"><button type="button" onclick="window.print()">طباعة / حفظ PDF</button></div><section class="report"><header class="header"><div class="brand"><div class="brand-lockup"><img src="${escapeHtml(brandMark)}" alt="ACP"/><div><strong>ACP ENTERPRISE</strong><br/><span>إدارة المشاريع والتشغيل والأصول</span></div></div><span>وثيقة تشغيلية موثقة</span></div><h1>${escapeHtml(definition.title)}</h1><p class="subtitle">${escapeHtml(definition.subtitle ?? "تقرير رسمي")}</p></header>
 <div class="meta"><div><b>رقم التقرير</b>${escapeHtml(definition.reportNo)}</div><div><b>المشروع</b>${escapeHtml(definition.projectName ?? "-")}</div><div><b>تاريخ الإصدار</b>${escapeHtml(generatedAt.toLocaleString("ar-SA"))}</div><div><b>إعداد</b>${escapeHtml(definition.generatedBy ?? "نظام ACP")}</div><div><b>حالة الاعتماد</b>${escapeHtml(definition.approvalStatus ?? "مسودة")}</div><div><b>عدد السجلات</b>${definition.rows.length}</div></div>
-<main class="content"><table><thead><tr><th>م</th>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table><div class="approval"><div><strong>الاعتماد:</strong> ${escapeHtml(definition.approvalStatus ?? "بانتظار الاعتماد")}</div><div class="verification">${qrImageUrl ? `<img src="${escapeHtml(qrImageUrl)}" alt="رمز التحقق" />` : ""}<span>${escapeHtml(verificationPayload)}</span></div></div></main>
-<footer class="footer"><span>وثيقة صادرة من ACP Enterprise</span><span>${escapeHtml(definition.reportNo)}</span></footer></section></body></html>`;
+<main class="content"><table><thead><tr><th>م</th>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table><div class="approval"><div><strong>الاعتماد:</strong> ${escapeHtml(definition.approvalStatus ?? "بانتظار الاعتماد")}</div><div class="verification">${qrObjectUrl ? `<img src="${escapeHtml(qrObjectUrl)}" alt="رمز التحقق"/>` : `<span class="qr-note">تعذر تحميل صورة QR؛ رابط التحقق محفوظ أدناه.</span>`}<span>${escapeHtml(verificationPayload)}</span></div></div></main><footer class="footer"><span>وثيقة صادرة من ACP Enterprise</span><span>${escapeHtml(definition.reportNo)}</span></footer></section></body></html>`;
 }
 
-export function openPrintableReport<T extends object>(definition: ReportDefinition<T>): void {
-  const html = printableHtml(definition);
+function writeDocument(target: Window, html: string): void {
+  target.document.open();
+  target.document.write(html);
+  target.document.close();
+}
 
-  // Safari returns null when noopener is passed as a window feature even when the
-  // user initiated the action. Open synchronously first, then sever the opener.
+export async function openPrintableReport<T extends object>(definition: ReportDefinition<T>): Promise<void> {
   const reportWindow = window.open("about:blank", "_blank");
   if (reportWindow) {
-    try {
-      reportWindow.opener = null;
-      reportWindow.document.open();
-      reportWindow.document.write(html);
-      reportWindow.document.close();
-      reportWindow.focus();
-      return;
-    } catch {
-      reportWindow.close();
-    }
+    reportWindow.opener = null;
+    writeDocument(reportWindow, '<!doctype html><html lang="ar" dir="rtl"><body style="font-family:Tahoma;text-align:center;padding:40px">جارٍ تجهيز التقرير ورمز التحقق الآمن…</body></html>');
   }
 
-  // Mobile/PWA fallback: open a generated HTML document through a direct anchor.
+  const verificationPayload = buildVerificationPayload(definition.reportNo, definition.verificationPath);
+  let qrObjectUrl: string | null = null;
+  try {
+    qrObjectUrl = await loadProtectedQrObjectUrl(verificationPayload);
+  } catch {
+    qrObjectUrl = null;
+  }
+  const html = printableHtml(definition, qrObjectUrl);
+
+  if (reportWindow) {
+    writeDocument(reportWindow, html);
+    reportWindow.focus();
+    if (qrObjectUrl) reportWindow.addEventListener("beforeunload", () => URL.revokeObjectURL(qrObjectUrl), { once: true });
+    return;
+  }
+
   const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -153,5 +166,8 @@ export function openPrintableReport<T extends object>(definition: ReportDefiniti
   document.body.append(anchor);
   anchor.click();
   anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+  window.setTimeout(() => {
+    URL.revokeObjectURL(url);
+    if (qrObjectUrl) URL.revokeObjectURL(qrObjectUrl);
+  }, 60000);
 }
