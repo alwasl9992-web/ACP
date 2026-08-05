@@ -39,12 +39,15 @@ test("warehouse UI persists capacity and an employee manager", async () => {
   assert.doesNotMatch(source, /وصف مؤقت/);
 });
 
-test("warehouse schema adds constrained operational fields", async () => {
+test("warehouse schema reconciles legacy fields and enforces canonical constraints", async () => {
   const sql = await read("supabase/migrations/20260806014500_warehouse_operational_fields.sql");
-  assert.match(sql, /manager_id uuid references public\.employees/i);
-  assert.match(sql, /capacity numeric\(14,3\) not null default 0/i);
+  assert.match(sql, /add column if not exists manager_id uuid/i);
+  assert.match(sql, /add column if not exists capacity numeric\(14,3\)/i);
+  assert.match(sql, /foreign key \(manager_id\) references public\.employees/i);
+  assert.match(sql, /alter column capacity set default 0/i);
+  assert.match(sql, /alter column capacity set not null/i);
   assert.match(sql, /warehouses_capacity_nonnegative/i);
-  assert.match(sql, /warehouses_manager_idx/i);
+  assert.match(sql, /create index if not exists warehouses_manager_idx/i);
 });
 
 test("commercial UI contains no coming-soon or temporary placeholder labels", async () => {
