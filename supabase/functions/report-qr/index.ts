@@ -1,4 +1,4 @@
-import QRCode from "npm:qrcode@1.5.6";
+import QRCode from "npm:qrcode@1.5.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
