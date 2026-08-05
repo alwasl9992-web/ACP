@@ -10,29 +10,53 @@ import {
 } from "@mui/material";
 import { useAuth } from "./AuthContext";
 
+function loginErrorMessage(reason: unknown): string {
+  if (!(reason instanceof Error)) {
+    return "تعذر تسجيل الدخول. تحقق من البيانات وحاول مرة أخرى.";
+  }
+
+  const message = reason.message.toLowerCase();
+  if (message.includes("invalid login credentials")) {
+    return "البريد الإلكتروني أو كلمة المرور غير صحيحة.";
+  }
+  if (message.includes("email not confirmed")) {
+    return "البريد الإلكتروني غير مؤكد. افتح رسالة التفعيل ثم حاول مرة أخرى.";
+  }
+  if (message.includes("failed to fetch") || message.includes("network")) {
+    return "تعذر الاتصال بخدمة ACP. تحقق من الإنترنت ثم أعد المحاولة.";
+  }
+  if (message.includes("غير مفعل") || message.includes("صلاحيات")) {
+    return reason.message;
+  }
+
+  return "لم يكتمل تسجيل الدخول. لم تُمسح بياناتك، ويمكنك المحاولة مرة أخرى.";
+}
+
 export default function LoginPage() {
   const { signIn, loading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const busy = loading || submitting;
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
 
-    if (!email.trim() || !password) {
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail || !password) {
       setError("أدخل البريد الإلكتروني وكلمة المرور.");
       return;
     }
 
+    setSubmitting(true);
     try {
-      await signIn(email, password);
+      await signIn(normalizedEmail, password);
     } catch (reason) {
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : "تعذر تسجيل الدخول. تحقق من البيانات وحاول مرة أخرى.",
-      );
+      setError(loginErrorMessage(reason));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -50,6 +74,7 @@ export default function LoginPage() {
       <Paper
         component="form"
         onSubmit={submit}
+        noValidate
         elevation={12}
         sx={{
           width: "100%",
@@ -72,7 +97,11 @@ export default function LoginPage() {
           الدخول إلى منصة إدارة المشاريع والتشغيل والأصول
         </Typography>
 
-        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        {error && (
+          <Alert severity="error" role="alert" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
 
         <TextField
           label="البريد الإلكتروني"
@@ -81,7 +110,7 @@ export default function LoginPage() {
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           fullWidth
-          disabled={loading}
+          disabled={busy}
           sx={{ mb: 2 }}
         />
         <TextField
@@ -91,7 +120,7 @@ export default function LoginPage() {
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           fullWidth
-          disabled={loading}
+          disabled={busy}
           sx={{ mb: 3 }}
         />
         <Button
@@ -99,14 +128,14 @@ export default function LoginPage() {
           variant="contained"
           size="large"
           fullWidth
-          disabled={loading}
+          disabled={busy}
           sx={{
             minHeight: 48,
             bgcolor: "#071b34",
             "&:hover": { bgcolor: "#0b315b" },
           }}
         >
-          {loading ? <CircularProgress size={24} color="inherit" /> : "دخول آمن"}
+          {busy ? <CircularProgress size={24} color="inherit" /> : "دخول آمن"}
         </Button>
       </Paper>
     </Box>
