@@ -1,0 +1,104 @@
+name: Commercial Browser UAT
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - "supabase/**"
+      - ".github/workflows/browser-uat.yml"
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - "supabase/**"
+      - ".github/workflows/browser-uat.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: browser-uat-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  authenticated-browser-uat:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    name: Authenticated Chromium and iPhone WebKit
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      STAGING_SUPABASE_PROJECT_REF: jvxodxfheftylolhqoip
+      STAGING_ADMIN_EMAIL: ${{ secrets.STAGING_ADMIN_EMAIL }}
+      STAGING_ADMIN_PASSWORD: ${{ secrets.STAGING_ADMIN_PASSWORD }}
+      VITE_SUPABASE_URL: https://jvxodxfheftylolhqoip.supabase.co
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      VITE_APP_URL: http://127.0.0.1:4173
+      VITE_APP_ENV: staging
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Validate protected UAT configuration
+        shell: bash
+        working-directory: .
+        run: |
+          set -euo pipefail
+          required=(SUPABASE_ACCESS_TOKEN STAGING_ADMIN_EMAIL STAGING_ADMIN_PASSWORD VITE_SUPABASE_ANON_KEY)
+          missing=()
+          for variable in "${required[@]}"; do
+            if [[ -z "${!variable:-}" ]]; then missing+=("$variable"); fi
+          done
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing browser UAT configuration: %s\n' "${missing[*]}" >&2
+            exit 1
+          fi
+
+      - name: Apply pending Staging migrations
+        working-directory: .
+        run: |
+          set -euo pipefail
+          supabase link --project-ref "$STAGING_SUPABASE_PROJECT_REF"
+          supabase db push --dry-run --linked
+          supabase db push --linked
+          supabase functions deploy report-qr --project-ref "$STAGING_SUPABASE_PROJECT_REF"
+
+      - name: Install application and browser test dependencies
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund
+          npm install --no-save --no-audit --no-fund @playwright/test
+          npx playwright install --with-deps chromium webkit
+
+      - name: Build Staging browser application
+        run: npm run build
+
+      - name: Run authenticated commercial browser UAT
+        run: npx playwright test
+
+      - name: Upload browser UAT evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: commercial-browser-uat-${{ github.run_id }}
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+          if-no-files-found: ignore
+          retention-days: 14
