@@ -1,3 +1,4 @@
+# Validates the latest Staging admin reconciliation and login-state fixes.
 name: Staging Acceptance Gate
 
 on:
