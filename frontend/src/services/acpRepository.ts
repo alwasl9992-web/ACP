@@ -24,6 +24,7 @@ export type AcpTable =
   | "projects"
   | "buildings"
   | "assets"
+  | "work_orders"
   | "gates"
   | "gate_daily_logs"
   | "employees"
@@ -57,9 +58,7 @@ function isOnline(): boolean {
   return navigator.onLine && runtimeConfig.configured;
 }
 
-function buildQuery(
-  options: QueryOptions,
-): Record<string, string | number> {
+function buildQuery(options: QueryOptions): Record<string, string | number> {
   const query: Record<string, string | number> = {
     select: options.select ?? "*",
   };
