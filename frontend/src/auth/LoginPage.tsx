@@ -22,6 +22,14 @@ function loginErrorMessage(reason: unknown): string {
   if (message.includes("email not confirmed")) {
     return "البريد الإلكتروني غير مؤكد. افتح رسالة التفعيل ثم حاول مرة أخرى.";
   }
+  if (
+    message.includes("invalid api key") ||
+    message.includes("no api key") ||
+    message.includes("apikey") ||
+    message.includes("project not found")
+  ) {
+    return "إعداد اتصال ACP بالخدمة السحابية غير صحيح. تم منع تسجيل الدخول لحماية الحساب.";
+  }
   if (message.includes("failed to fetch") || message.includes("network")) {
     return "تعذر الاتصال بخدمة ACP. تحقق من الإنترنت ثم أعد المحاولة.";
   }
