@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">ACP Enterprise</title>
+  <desc id="desc">Geometric navy and gold ACP mark</desc>
+  <rect width="128" height="128" rx="28" fill="#071B34"/>
+  <path d="M26 86 52 34h18L44 86H26Z" fill="#D1AA3E"/>
+  <path d="M57 34h22c17 0 28 9 28 24 0 16-11 25-29 25H64l8-16h7c7 0 11-3 11-9 0-5-4-8-11-8H57V34Z" fill="#F7F9FC"/>
+  <path d="M50 70h32l-8 16H42l8-16Z" fill="#D1AA3E"/>
+</svg>
