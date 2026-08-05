@@ -29,6 +29,16 @@ interface AuthContextValue extends AuthState {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+async function requireActiveProfile(
+  nextSession: AuthSession,
+): Promise<PlatformProfile> {
+  const nextProfile = await getCurrentProfile(nextSession.user.id);
+  if (!nextProfile?.is_active) {
+    throw new Error("الحساب غير مفعل أو لا يملك ملف صلاحيات.");
+  }
+  return nextProfile;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [profile, setProfile] = useState<PlatformProfile | null>(null);
@@ -42,14 +52,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const nextProfile = await getCurrentProfile(nextSession.user.id);
-    if (!nextProfile?.is_active) {
+    try {
+      const nextProfile = await requireActiveProfile(nextSession);
+      setProfile(nextProfile);
+    } catch (error) {
       await signOutRequest();
       setSession(null);
       setProfile(null);
-      throw new Error("الحساب غير مفعل أو لا يملك ملف صلاحيات.");
+      throw error;
     }
-    setProfile(nextProfile);
   }, []);
 
   useEffect(() => {
@@ -80,19 +91,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [demoMode, loadProfile]);
 
-  const signIn = useCallback(
-    async (email: string, password: string) => {
-      setLoading(true);
-      try {
-        const nextSession = await signInWithPassword(email, password);
-        setSession(nextSession);
-        await loadProfile(nextSession);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [loadProfile],
-  );
+  const signIn = useCallback(async (email: string, password: string) => {
+    const nextSession = await signInWithPassword(email, password);
+
+    try {
+      const nextProfile = await requireActiveProfile(nextSession);
+      // Publish authentication and authorization together. Keeping the global
+      // loading flag unchanged prevents App from replacing LoginPage with the
+      // startup spinner and clearing the form during a failed sign-in.
+      setSession(nextSession);
+      setProfile(nextProfile);
+    } catch (error) {
+      await signOutRequest();
+      setSession(null);
+      setProfile(null);
+      throw error;
+    }
+  }, []);
 
   const signOut = useCallback(async () => {
     setLoading(true);
