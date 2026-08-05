@@ -8,6 +8,7 @@ on:
       - "frontend/**"
       - "supabase/**"
       - "scripts/staging-acceptance.mjs"
+      - "scripts/reconcile-staging-admin.mjs"
       - ".github/workflows/staging-acceptance.yml"
   workflow_dispatch:
 
@@ -42,9 +43,11 @@ jobs:
           npm run test:platform
           npm run build
           npm audit --omit=dev --audit-level=high
-      - name: Validate acceptance script syntax
+      - name: Validate acceptance scripts
         working-directory: .
-        run: node --check scripts/staging-acceptance.mjs
+        run: |
+          node --check scripts/reconcile-staging-admin.mjs
+          node --check scripts/staging-acceptance.mjs
 
   database_quality:
     name: Database rebuild, lint and pgTAP
@@ -79,6 +82,7 @@ jobs:
     environment: staging
     timeout-minutes: 12
     env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       STAGING_SUPABASE_URL: https://jvxodxfheftylolhqoip.supabase.co
       STAGING_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
       STAGING_ADMIN_EMAIL: ${{ secrets.STAGING_ADMIN_EMAIL }}
@@ -97,7 +101,7 @@ jobs:
         run: |
           set -euo pipefail
           missing=()
-          for variable in STAGING_SUPABASE_URL STAGING_SUPABASE_ANON_KEY STAGING_ADMIN_EMAIL STAGING_ADMIN_PASSWORD; do
+          for variable in SUPABASE_ACCESS_TOKEN STAGING_SUPABASE_URL STAGING_SUPABASE_ANON_KEY STAGING_ADMIN_EMAIL STAGING_ADMIN_PASSWORD; do
             if [[ -z "${!variable:-}" ]]; then
               missing+=("$variable")
             fi
@@ -106,5 +110,7 @@ jobs:
             printf 'Missing required staging secrets: %s\n' "${missing[*]}" >&2
             exit 1
           fi
+      - name: Reconcile Staging System Admin
+        run: node scripts/reconcile-staging-admin.mjs
       - name: Run live staging acceptance suite
         run: node scripts/staging-acceptance.mjs
