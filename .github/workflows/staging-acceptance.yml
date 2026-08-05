@@ -1,4 +1,4 @@
-# Validates the latest Staging admin reconciliation and login-state fixes.
+# Validates Staging authentication, data access, QR output, and deployed PWA shell.
 name: Staging Acceptance Gate
 
 on:
@@ -93,7 +93,7 @@ jobs:
       STAGING_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
       STAGING_ADMIN_EMAIL: ${{ secrets.STAGING_ADMIN_EMAIL }}
       STAGING_ADMIN_PASSWORD: ${{ secrets.STAGING_ADMIN_PASSWORD }}
-      STAGING_APP_URL: ${{ secrets.STAGING_APP_URL }}
+      STAGING_APP_URL: https://acp-85qn.vercel.app
       STAGING_SUPABASE_PROJECT_REF: jvxodxfheftylolhqoip
     steps:
       - name: Checkout repository
@@ -111,13 +111,13 @@ jobs:
         run: |
           set -euo pipefail
           missing=()
-          for variable in SUPABASE_ACCESS_TOKEN STAGING_SUPABASE_URL STAGING_SUPABASE_ANON_KEY STAGING_ADMIN_EMAIL STAGING_ADMIN_PASSWORD; do
+          for variable in SUPABASE_ACCESS_TOKEN STAGING_SUPABASE_URL STAGING_SUPABASE_ANON_KEY STAGING_ADMIN_EMAIL STAGING_ADMIN_PASSWORD STAGING_APP_URL; do
             if [[ -z "${!variable:-}" ]]; then
               missing+=("$variable")
             fi
           done
           if (( ${#missing[@]} > 0 )); then
-            printf 'Missing required staging secrets: %s\n' "${missing[*]}" >&2
+            printf 'Missing required staging configuration: %s\n' "${missing[*]}" >&2
             exit 1
           fi
       - name: Deploy Staging QR Edge Function
