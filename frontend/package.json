@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "test:platform": "node --test tests/platform-foundation.test.mjs",
+    "test:platform": "node --test tests/platform-foundation.test.mjs tests/release-hardening.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
