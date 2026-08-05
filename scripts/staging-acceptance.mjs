@@ -223,6 +223,27 @@ try {
     ]) {
       assert.ok(page.headers.get(header), `Missing ${header}`);
     }
+
+    const scriptSources = Array.from(
+      html.matchAll(/<script[^>]+src=["']([^"']+)["']/gi),
+      (match) => match[1],
+    );
+    assert.ok(scriptSources.length > 0, "No deployed JavaScript bundle found");
+    let deployedJavaScript = "";
+    for (const source of scriptSources) {
+      const scriptResponse = await fetch(new URL(source, `${appUrl}/`));
+      assert.equal(scriptResponse.status, 200);
+      deployedJavaScript += await scriptResponse.text();
+    }
+    assert.ok(
+      deployedJavaScript.includes(`${ref}.supabase.co`),
+      "Deployed frontend targets a different Supabase project",
+    );
+    assert.ok(
+      deployedJavaScript.includes(key),
+      "Deployed frontend contains a different Supabase browser key",
+    );
+
     const manifest = await fetch(`${appUrl}/manifest.webmanifest`);
     assert.equal(manifest.status, 200);
     assert.match(await manifest.text(), /"display"\s*:\s*"standalone"/i);

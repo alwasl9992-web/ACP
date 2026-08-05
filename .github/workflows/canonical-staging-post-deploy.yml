@@ -1,0 +1,92 @@
+name: Canonical Staging Post-Deploy Verification
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - "scripts/staging-acceptance.mjs"
+      - "scripts/reconcile-staging-admin.mjs"
+      - ".github/workflows/canonical-staging-post-deploy.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: canonical-staging-post-deploy
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 15
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      STAGING_SUPABASE_URL: https://jvxodxfheftylolhqoip.supabase.co
+      STAGING_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      STAGING_ADMIN_EMAIL: ${{ secrets.STAGING_ADMIN_EMAIL }}
+      STAGING_ADMIN_PASSWORD: ${{ secrets.STAGING_ADMIN_PASSWORD }}
+      STAGING_APP_URL: https://acp-85qn.vercel.app
+      STAGING_SUPABASE_PROJECT_REF: jvxodxfheftylolhqoip
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Wait for canonical Vercel deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$STAGING_SUPABASE_ANON_KEY"
+          node <<'NODE'
+          import assert from 'node:assert/strict';
+          const origin = process.env.STAGING_APP_URL.replace(/\/+$/, '');
+          const expectedHost = `${process.env.STAGING_SUPABASE_PROJECT_REF}.supabase.co`;
+          const expectedKey = process.env.STAGING_SUPABASE_ANON_KEY;
+          let lastReason = 'deployment not ready';
+          for (let attempt = 1; attempt <= 30; attempt += 1) {
+            try {
+              const page = await fetch(origin, { cache: 'no-store' });
+              const html = await page.text();
+              assert.equal(page.status, 200);
+              const scripts = Array.from(
+                html.matchAll(/<script[^>]+src=["']([^"']+)["']/gi),
+                (match) => match[1],
+              );
+              assert.ok(scripts.length > 0);
+              let bundle = '';
+              for (const source of scripts) {
+                const response = await fetch(new URL(source, `${origin}/`), { cache: 'no-store' });
+                assert.equal(response.status, 200);
+                bundle += await response.text();
+              }
+              assert.ok(bundle.includes(expectedHost));
+              assert.ok(bundle.includes(expectedKey));
+              console.log(`Canonical Staging deployment is current after ${attempt} attempt(s)`);
+              process.exit(0);
+            } catch (error) {
+              lastReason = error instanceof Error ? error.message : String(error);
+              await new Promise((resolve) => setTimeout(resolve, 10_000));
+            }
+          }
+          throw new Error(`Canonical Staging deployment did not become current: ${lastReason}`);
+          NODE
+
+      - name: Deploy Staging QR Edge Function
+        run: supabase functions deploy report-qr --project-ref "$STAGING_SUPABASE_PROJECT_REF"
+
+      - name: Reconcile Staging System Admin
+        run: node scripts/reconcile-staging-admin.mjs
+
+      - name: Run canonical live acceptance suite
+        run: node scripts/staging-acceptance.mjs
