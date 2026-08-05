@@ -66,8 +66,8 @@ async function selectFirstProject(page) {
 async function verifyAssetProfile(page) {
   await clickNavigation(page, "الأصول");
   await assertHealthyScreen(page, "سجل الأصول");
-  const openAsset = page.getByRole("button", { name: "فتح", exact: true }).first();
-  await expect(openAsset, "At least one asset must exist for commercial UAT").toBeVisible();
+  const openAsset = page.getByRole("button", { name: /فتح(?: الأصل)?/ }).first();
+  await expect(openAsset, "At least one asset must expose a visible open action").toBeVisible();
   await openAsset.click();
 
   await expect(page.getByRole("heading", { name: "هوية QR للأصل" })).toBeVisible();
@@ -82,12 +82,24 @@ async function verifyAssetProfile(page) {
   await assertHealthyScreen(page, "سجل الأصول");
 }
 
-async function deleteReportRow(page, reportId) {
-  const row = page.locator(`.MuiDataGrid-row[data-id="${reportId}"]`);
-  if (await row.count()) {
+function visibleReportItems(page) {
+  return page.locator('[data-report-id]:visible, .MuiDataGrid-row:visible');
+}
+
+async function reportIdentifier(item) {
+  return item.evaluate((element) => element.getAttribute("data-report-id") || element.getAttribute("data-id"));
+}
+
+function reportItemById(page, reportId) {
+  return page.locator(`[data-report-id="${reportId}"]:visible, .MuiDataGrid-row[data-id="${reportId}"]:visible`);
+}
+
+async function deleteReportItem(page, reportId) {
+  const item = reportItemById(page, reportId);
+  if (await item.count()) {
     page.once("dialog", (dialog) => void dialog.accept());
-    await row.getByRole("button", { name: "حذف", exact: true }).click();
-    await expect(row).toHaveCount(0);
+    await item.getByRole("button", { name: "حذف", exact: true }).click();
+    await expect(item).toHaveCount(0);
   }
 }
 
@@ -95,21 +107,25 @@ async function verifyPdfAndCleanup(page) {
   await clickNavigation(page, "التقارير");
   await assertHealthyScreen(page, "مركز التقارير");
 
-  const rows = page.locator(".MuiDataGrid-row");
-  const firstBefore = await rows.first().getAttribute("data-id");
+  const items = visibleReportItems(page);
+  const firstBefore = await items.count() ? await reportIdentifier(items.first()) : null;
   let createdId = null;
 
   try {
     await page.getByRole("button", { name: "إنشاء تقرير يومي" }).click();
-    await expect.poll(() => rows.first().getAttribute("data-id"), { message: "A generated report must become the newest row" }).not.toBe(firstBefore);
-    createdId = await rows.first().getAttribute("data-id");
-    expect(createdId).toBeTruthy();
+    await expect.poll(async () => {
+      const first = visibleReportItems(page).first();
+      return await first.count() ? await reportIdentifier(first) : null;
+    }, { message: "A generated report must become the newest visible report" }).not.toBe(firstBefore);
 
-    const createdRow = page.locator(`.MuiDataGrid-row[data-id="${createdId}"]`);
-    await expect(createdRow).toContainText("تقرير التشغيل اليومي");
+    createdId = await reportIdentifier(visibleReportItems(page).first());
+    expect(createdId).toBeTruthy();
+    const createdItem = reportItemById(page, createdId);
+    await expect(createdItem).toContainText("تقرير التشغيل اليومي");
+    await expect(createdItem.getByRole("button", { name: "PDF", exact: true })).toBeVisible();
 
     const popupPromise = page.waitForEvent("popup");
-    await createdRow.getByRole("button", { name: "PDF", exact: true }).click();
+    await createdItem.getByRole("button", { name: "PDF", exact: true }).click();
     const popup = await popupPromise;
     await expect(popup.getByText("ACP ENTERPRISE").first()).toBeVisible();
     await expect(popup.getByRole("button", { name: "طباعة / حفظ PDF" })).toBeVisible();
@@ -117,7 +133,7 @@ async function verifyPdfAndCleanup(page) {
     await expect(popup.locator('img[alt="رمز التحقق"]')).toBeVisible();
     await popup.close();
   } finally {
-    if (createdId) await deleteReportRow(page, createdId);
+    if (createdId) await deleteReportItem(page, createdId);
   }
 }
 
