@@ -4,34 +4,22 @@ const adminEmail = process.env.STAGING_ADMIN_EMAIL;
 const adminPassword = process.env.STAGING_ADMIN_PASSWORD;
 
 function assertCredentials() {
-  if (!adminEmail || !adminPassword) {
-    throw new Error("STAGING_ADMIN_EMAIL and STAGING_ADMIN_PASSWORD are required");
-  }
+  if (!adminEmail || !adminPassword) throw new Error("STAGING_ADMIN_EMAIL and STAGING_ADMIN_PASSWORD are required");
 }
 
 async function clickNavigation(page, label) {
   const mobileMenu = page.getByRole("button", { name: "فتح القائمة" });
   if (await mobileMenu.isVisible()) await mobileMenu.click();
-
-  const item = page
-    .locator(".MuiListItemButton-root:visible")
-    .filter({ hasText: label })
-    .first();
+  const item = page.locator(".MuiListItemButton-root:visible").filter({ hasText: label }).first();
   await expect(item, `Navigation item ${label}`).toBeVisible();
   await item.click();
 }
 
 async function assertNoHorizontalOverflow(page) {
-  await expect
-    .poll(
-      () =>
-        page.evaluate(() => ({
-          scrollWidth: document.documentElement.scrollWidth,
-          clientWidth: document.documentElement.clientWidth,
-        })),
-      { message: "The application shell must not overflow horizontally" },
-    )
-    .toSatisfy(({ scrollWidth, clientWidth }) => scrollWidth <= clientWidth + 2);
+  await expect.poll(
+    () => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 2),
+    { message: "The application shell must not overflow horizontally" },
+  ).toBe(true);
 }
 
 async function assertHealthyScreen(page, heading) {
@@ -43,21 +31,16 @@ async function assertHealthyScreen(page, heading) {
 
 function collectRuntimeFailures(page) {
   const failures = [];
-
   page.on("pageerror", (error) => failures.push(`pageerror: ${error.message}`));
   page.on("console", (message) => {
     if (message.type() === "error") failures.push(`console: ${message.text()}`);
   });
   page.on("response", (response) => {
     const url = response.url();
-    if (
-      response.status() >= 400 &&
-      (url.includes("supabase.co/") || url.includes("127.0.0.1:4173"))
-    ) {
+    if (response.status() >= 400 && (url.includes("supabase.co/") || url.includes("127.0.0.1:4173"))) {
       failures.push(`HTTP ${response.status()}: ${url}`);
     }
   });
-
   return failures;
 }
 
@@ -92,10 +75,20 @@ async function verifyAssetProfile(page) {
   const qr = page.locator('img[alt^="QR للأصل"]').first();
   await expect(qr).toBeVisible();
   await expect.poll(() => qr.evaluate((image) => image.naturalWidth)).toBeGreaterThan(0);
+  await expect(page.getByRole("button", { name: "طباعة البطاقة" })).toBeEnabled();
   await assertNoHorizontalOverflow(page);
 
   await page.getByRole("button", { name: "العودة إلى سجل الأصول" }).click();
   await assertHealthyScreen(page, "سجل الأصول");
+}
+
+async function deleteReportRow(page, reportId) {
+  const row = page.locator(`.MuiDataGrid-row[data-id="${reportId}"]`);
+  if (await row.count()) {
+    page.once("dialog", (dialog) => void dialog.accept());
+    await row.getByRole("button", { name: "حذف", exact: true }).click();
+    await expect(row).toHaveCount(0);
+  }
 }
 
 async function verifyPdfAndCleanup(page) {
@@ -103,25 +96,29 @@ async function verifyPdfAndCleanup(page) {
   await assertHealthyScreen(page, "مركز التقارير");
 
   const rows = page.locator(".MuiDataGrid-row");
-  const before = await rows.count();
-  await page.getByRole("button", { name: "إنشاء تقرير يومي" }).click();
-  await expect.poll(() => rows.count(), { message: "A generated report must appear in the grid" }).toBeGreaterThan(before);
+  const firstBefore = await rows.first().getAttribute("data-id");
+  let createdId = null;
 
-  const createdRow = rows.first();
-  await expect(createdRow).toContainText("تقرير التشغيل اليومي");
+  try {
+    await page.getByRole("button", { name: "إنشاء تقرير يومي" }).click();
+    await expect.poll(() => rows.first().getAttribute("data-id"), { message: "A generated report must become the newest row" }).not.toBe(firstBefore);
+    createdId = await rows.first().getAttribute("data-id");
+    expect(createdId).toBeTruthy();
 
-  const popupPromise = page.waitForEvent("popup");
-  await createdRow.getByRole("button", { name: "PDF", exact: true }).click();
-  const popup = await popupPromise;
-  await popup.waitForLoadState("domcontentloaded");
-  await expect(popup.getByText("ACP ENTERPRISE").first()).toBeVisible();
-  await expect(popup.getByRole("button", { name: "طباعة / حفظ PDF" })).toBeVisible();
-  await expect(popup.locator("html")).toHaveAttribute("dir", "rtl");
-  await popup.close();
+    const createdRow = page.locator(`.MuiDataGrid-row[data-id="${createdId}"]`);
+    await expect(createdRow).toContainText("تقرير التشغيل اليومي");
 
-  page.once("dialog", (dialog) => dialog.accept());
-  await createdRow.getByRole("button", { name: "حذف", exact: true }).click();
-  await expect.poll(() => rows.count(), { message: "Temporary UAT report must be removed" }).toBeLessThanOrEqual(before);
+    const popupPromise = page.waitForEvent("popup");
+    await createdRow.getByRole("button", { name: "PDF", exact: true }).click();
+    const popup = await popupPromise;
+    await expect(popup.getByText("ACP ENTERPRISE").first()).toBeVisible();
+    await expect(popup.getByRole("button", { name: "طباعة / حفظ PDF" })).toBeVisible();
+    await expect(popup.locator("html")).toHaveAttribute("dir", "rtl");
+    await expect(popup.locator('img[alt="رمز التحقق"]')).toBeVisible();
+    await popup.close();
+  } finally {
+    if (createdId) await deleteReportRow(page, createdId);
+  }
 }
 
 test("commercial authenticated workflow is healthy across all primary screens", async ({ page }) => {
@@ -145,7 +142,6 @@ test("commercial authenticated workflow is healthy across all primary screens", 
 
   await verifyAssetProfile(page);
   await verifyPdfAndCleanup(page);
-
   await clickNavigation(page, "الإعدادات");
   await assertHealthyScreen(page, "إعدادات النظام");
 
