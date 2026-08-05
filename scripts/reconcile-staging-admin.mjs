@@ -118,39 +118,33 @@ if (!user) {
 }
 
 assert.equal(typeof user?.id, "string", "Supabase Auth did not return a user id");
+assert.match(user.id, /^[0-9a-f-]{36}$/i, "Supabase Auth returned an invalid user id");
 
-const profileUrl = `${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=id,full_name,role,is_active&limit=1`;
-const { payload: profileRows } = await request(profileUrl, { headers: adminHeaders });
-const existingProfile = Array.isArray(profileRows) ? profileRows[0] : null;
-
-if (existingProfile) {
-  await request(`${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}`, {
-    method: "PATCH",
-    headers: {
-      ...adminHeaders,
-      Prefer: "return=representation",
-    },
-    statuses: [200],
-    body: { role: "system_admin", is_active: true },
-  });
-  console.log("RECONCILE System Admin profile activated");
-} else {
-  await request(`${supabaseUrl}/rest/v1/profiles`, {
+await request(
+  `https://api.supabase.com/v1/projects/${projectRef}/database/query`,
+  {
     method: "POST",
-    headers: {
-      ...adminHeaders,
-      Prefer: "return=representation",
-    },
-    statuses: [201],
+    headers: managementHeaders,
+    statuses: [200, 201],
     body: {
-      id: user.id,
-      full_name: user.user_metadata?.full_name || email,
-      role: "system_admin",
-      is_active: true,
+      query: `
+        insert into public.profiles (id, full_name, role, is_active)
+        values ($1::uuid, $2::text, 'system_admin'::public.app_role, true)
+        on conflict (id) do update
+          set role = 'system_admin'::public.app_role,
+              is_active = true,
+              updated_at = now()
+        returning id, role::text, is_active;
+      `,
+      parameters: [
+        user.id,
+        user.user_metadata?.full_name || "ACP System Administrator",
+      ],
+      read_only: false,
     },
-  });
-  console.log("RECONCILE System Admin profile created");
-}
+  },
+);
+console.log("RECONCILE System Admin profile promoted and activated");
 
 const { payload: login } = await request(
   `${supabaseUrl}/auth/v1/token?grant_type=password`,
