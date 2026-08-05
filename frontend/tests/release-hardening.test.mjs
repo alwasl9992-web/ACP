@@ -19,17 +19,19 @@ test("dashboard reads operational metrics from real database tables", async () =
   assert.match(source, /selectedProject/);
 });
 
-test("report preview keeps Safari compatibility and a mobile fallback", async () => {
+test("report preview keeps Safari compatibility, mobile fallback and protected QR loading", async () => {
   const source = await read("frontend/src/reports/exporters.ts");
   assert.match(source, /window\.open\(\"about:blank\", \"_blank\"\)/);
   assert.match(source, /URL\.createObjectURL/);
   assert.match(source, /anchor\.target = \"_blank\"/);
+  assert.match(source, /supabaseBlobRequest/);
+  assert.match(source, /loadProtectedQrObjectUrl/);
   assert.doesNotMatch(source, /window\.open\([^\n]+noopener,noreferrer/);
 });
 
-test("asset profile exposes real QR and persistent work orders without placeholder modules", async () => {
+test("asset profile exposes authenticated QR and persistent work orders without placeholder modules", async () => {
   const source = await read("frontend/src/pages/AssetProfile.tsx");
-  assert.match(source, /buildQrImageUrl/);
+  assert.match(source, /loadProtectedQrObjectUrl/);
   assert.match(source, /listRecords<WorkOrder>\(\"work_orders\"/);
   assert.match(source, /createRecord<WorkOrder>\(\"work_orders\"/);
   assert.match(source, /updateRecord<WorkOrder>\(\"work_orders\"/);
