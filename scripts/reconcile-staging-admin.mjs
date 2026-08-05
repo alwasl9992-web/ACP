@@ -66,6 +66,22 @@ const managementHeaders = {
   Authorization: `Bearer ${managementToken}`,
 };
 
+async function executeSql(query, parameters = []) {
+  return request(
+    `https://api.supabase.com/v1/projects/${projectRef}/database/query`,
+    {
+      method: "POST",
+      headers: managementHeaders,
+      statuses: [200, 201],
+      body: {
+        query: query.trim(),
+        parameters,
+        read_only: false,
+      },
+    },
+  );
+}
+
 const { payload: keyPayload } = await request(
   `https://api.supabase.com/v1/projects/${projectRef}/api-keys?reveal=true`,
   { headers: managementHeaders },
@@ -120,92 +136,80 @@ if (!user) {
 assert.equal(typeof user?.id, "string", "Supabase Auth did not return a user id");
 assert.match(user.id, /^[0-9a-f-]{36}$/i, "Supabase Auth returned an invalid user id");
 
-await request(
-  `https://api.supabase.com/v1/projects/${projectRef}/database/query`,
-  {
-    method: "POST",
-    headers: managementHeaders,
-    statuses: [200, 201],
-    body: {
-      query: `
-        grant usage on schema public to authenticated;
+const applicationTables = [
+  "public.profiles",
+  "public.projects",
+  "public.project_members",
+  "public.buildings",
+  "public.assets",
+  "public.gates",
+  "public.gate_daily_logs",
+  "public.employees",
+  "public.employee_assignments",
+  "public.attendance_events",
+  "public.employee_warnings",
+  "public.warehouses",
+  "public.warehouse_items",
+  "public.stock_movements",
+  "public.incidents",
+  "public.reports",
+  "public.attachments",
+  "public.sync_mutations",
+  "public.audit_logs",
+  "public.system_settings",
+].join(", ");
 
-        revoke all on table public.profiles from anon;
-        revoke all on table public.projects from anon;
-        revoke all on table public.project_members from anon;
-        revoke all on table public.buildings from anon;
-        revoke all on table public.assets from anon;
-        revoke all on table public.gates from anon;
-        revoke all on table public.gate_daily_logs from anon;
-        revoke all on table public.employees from anon;
-        revoke all on table public.employee_assignments from anon;
-        revoke all on table public.attendance_events from anon;
-        revoke all on table public.employee_warnings from anon;
-        revoke all on table public.warehouses from anon;
-        revoke all on table public.warehouse_items from anon;
-        revoke all on table public.stock_movements from anon;
-        revoke all on table public.incidents from anon;
-        revoke all on table public.reports from anon;
-        revoke all on table public.attachments from anon;
-        revoke all on table public.sync_mutations from anon;
-        revoke all on table public.audit_logs from anon;
-        revoke all on table public.system_settings from anon;
+const mutableProjectTables = [
+  "public.projects",
+  "public.project_members",
+  "public.buildings",
+  "public.assets",
+  "public.gates",
+  "public.gate_daily_logs",
+  "public.employees",
+  "public.employee_assignments",
+  "public.attendance_events",
+  "public.employee_warnings",
+  "public.warehouses",
+  "public.warehouse_items",
+  "public.stock_movements",
+  "public.incidents",
+  "public.reports",
+  "public.attachments",
+  "public.sync_mutations",
+].join(", ");
 
-        grant select, update on table public.profiles to authenticated;
-        revoke insert, delete on table public.profiles from authenticated;
+await executeSql("grant usage on schema public to authenticated");
+await executeSql(`revoke all on table ${applicationTables} from anon`);
+await executeSql("grant select, update on table public.profiles to authenticated");
+await executeSql("revoke insert, delete on table public.profiles from authenticated");
+await executeSql(
+  `grant select, insert, update, delete on table ${mutableProjectTables} to authenticated`,
+);
+await executeSql("grant select, insert, update on table public.system_settings to authenticated");
+await executeSql("revoke delete on table public.system_settings from authenticated");
+await executeSql("grant select on table public.audit_logs to authenticated");
+await executeSql("revoke insert, update, delete on table public.audit_logs from authenticated");
+await executeSql("grant usage, select on sequence public.document_number_seq to authenticated");
+await executeSql(
+  "revoke all on function public.current_app_role(), public.can_access_project(uuid), public.can_manage_project(uuid), public.can_administer_project_members(uuid), public.next_document_number(text) from anon",
+);
+await executeSql(
+  "grant execute on function public.current_app_role(), public.can_access_project(uuid), public.can_manage_project(uuid), public.can_administer_project_members(uuid), public.next_document_number(text) to authenticated",
+);
 
-        grant select, insert, update, delete on table
-          public.projects,
-          public.project_members,
-          public.buildings,
-          public.assets,
-          public.gates,
-          public.gate_daily_logs,
-          public.employees,
-          public.employee_assignments,
-          public.attendance_events,
-          public.employee_warnings,
-          public.warehouses,
-          public.warehouse_items,
-          public.stock_movements,
-          public.incidents,
-          public.reports,
-          public.attachments,
-          public.sync_mutations
-          to authenticated;
-
-        grant select, insert, update on table public.system_settings to authenticated;
-        revoke delete on table public.system_settings from authenticated;
-        grant select on table public.audit_logs to authenticated;
-        revoke insert, update, delete on table public.audit_logs from authenticated;
-        grant usage, select on sequence public.document_number_seq to authenticated;
-
-        revoke all on function public.current_app_role() from anon;
-        revoke all on function public.can_access_project(uuid) from anon;
-        revoke all on function public.can_manage_project(uuid) from anon;
-        revoke all on function public.can_administer_project_members(uuid) from anon;
-        revoke all on function public.next_document_number(text) from anon;
-        grant execute on function public.current_app_role() to authenticated;
-        grant execute on function public.can_access_project(uuid) to authenticated;
-        grant execute on function public.can_manage_project(uuid) to authenticated;
-        grant execute on function public.can_administer_project_members(uuid) to authenticated;
-        grant execute on function public.next_document_number(text) to authenticated;
-
-        insert into public.profiles (id, full_name, role, is_active)
-        values ($1::uuid, $2::text, 'system_admin'::public.app_role, true)
-        on conflict (id) do update
-          set role = 'system_admin'::public.app_role,
-              is_active = true,
-              updated_at = now()
-        returning id, role::text, is_active;
-      `,
-      parameters: [
-        user.id,
-        user.user_metadata?.full_name || "ACP System Administrator",
-      ],
-      read_only: false,
-    },
-  },
+await executeSql(
+  `insert into public.profiles (id, full_name, role, is_active)
+   values ($1::uuid, $2::text, 'system_admin'::public.app_role, true)
+   on conflict (id) do update
+     set role = 'system_admin'::public.app_role,
+         is_active = true,
+         updated_at = now()
+   returning id, role::text, is_active`,
+  [
+    user.id,
+    user.user_metadata?.full_name || "ACP System Administrator",
+  ],
 );
 console.log("RECONCILE API privileges and System Admin profile verified");
 
