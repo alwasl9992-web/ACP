@@ -9,10 +9,12 @@ function assertCredentials() {
 
 async function clickNavigation(page, label) {
   const mobileMenu = page.getByRole("button", { name: "فتح القائمة" });
-  if (await mobileMenu.isVisible()) await mobileMenu.click();
+  const mobile = await mobileMenu.isVisible();
+  if (mobile) await mobileMenu.click();
   const item = page.locator(".MuiListItemButton-root:visible").filter({ hasText: label }).first();
   await expect(item, `Navigation item ${label}`).toBeVisible();
   await item.click();
+  if (mobile) await expect(page.locator(".MuiDrawer-modal")).toBeHidden();
 }
 
 async function assertNoHorizontalOverflow(page) {
@@ -66,7 +68,10 @@ async function selectFirstProject(page) {
 async function verifyAssetProfile(page) {
   await clickNavigation(page, "الأصول");
   await assertHealthyScreen(page, "سجل الأصول");
-  const openAsset = page.getByRole("button", { name: /فتح(?: الأصل)?/ }).first();
+
+  const mobileOpen = page.getByRole("button", { name: "فتح الأصل", exact: true }).first();
+  const desktopOpen = page.getByRole("button", { name: "فتح", exact: true }).first();
+  const openAsset = await mobileOpen.isVisible() ? mobileOpen : desktopOpen;
   await expect(openAsset, "At least one asset must expose a visible open action").toBeVisible();
   await openAsset.click();
 
