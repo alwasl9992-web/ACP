@@ -48,6 +48,112 @@ a {
 }
 
 ::selection {
-  background: rgba(201, 162, 39, 0.28);
-  color: #071b34;
+  background: rgba(199, 164, 87, 0.3);
+  color: #08182b;
+}
+
+.acp-print-header {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+
+  html,
+  body,
+  #root {
+    width: 100% !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+  }
+
+  body {
+    padding: 0 !important;
+    color: #10243e !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .acp-no-print,
+  .MuiAppBar-root,
+  .MuiDrawer-root,
+  .MuiModal-root,
+  .MuiSnackbar-root,
+  .MuiTooltip-popper {
+    display: none !important;
+  }
+
+  .acp-app-shell {
+    display: block !important;
+    min-height: auto !important;
+    overflow: visible !important;
+  }
+
+  .acp-main {
+    width: 100% !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+  }
+
+  .acp-print-header {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 18px;
+    padding-bottom: 12px;
+    border-bottom: 3px solid #c7a457;
+    break-after: avoid;
+  }
+
+  .acp-print-header img {
+    width: 44px !important;
+    height: 44px !important;
+  }
+
+  .acp-print-content {
+    width: 100% !important;
+    overflow: visible !important;
+  }
+
+  .acp-print-content button,
+  .acp-print-content [role="button"],
+  .acp-print-content .MuiDataGrid-footerContainer,
+  .acp-print-content .MuiDataGrid-menuIcon,
+  .acp-print-content .MuiDataGrid-columnSeparator {
+    display: none !important;
+  }
+
+  .acp-print-content .MuiPaper-root,
+  .acp-print-content .MuiCard-root {
+    box-shadow: none !important;
+  }
+
+  .acp-print-content .MuiDataGrid-root {
+    height: auto !important;
+    border-color: #d9e0e9 !important;
+  }
+
+  .acp-print-content .MuiDataGrid-virtualScroller,
+  .acp-print-content .MuiDataGrid-main {
+    overflow: visible !important;
+  }
+
+  .acp-print-content .MuiDataGrid-virtualScrollerContent,
+  .acp-print-content .MuiDataGrid-virtualScrollerRenderZone {
+    position: static !important;
+    transform: none !important;
+  }
+
+  a {
+    color: inherit !important;
+    text-decoration: none !important;
+  }
 }
