@@ -12,21 +12,16 @@ import {
   Typography,
 } from "@mui/material";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined";
+import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
+import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
+import VerifiedOutlinedIcon from "@mui/icons-material/VerifiedOutlined";
 
 import { useAuth } from "../auth/AuthContext";
 import { can } from "../auth/authService";
 import { useProject } from "../context/ProjectContext";
-import {
-  exportReportToExcel,
-  openPrintableReport,
-  type ReportDefinition,
-} from "../reports/exporters";
-import {
-  createRecord,
-  deleteRecord,
-  listRecords,
-  updateRecord,
-} from "../services/acpRepository";
+import { exportReportToExcel, openPrintableReport, type ReportDefinition } from "../reports/exporters";
+import { createRecord, deleteRecord, listRecords, updateRecord } from "../services/acpRepository";
 import type { PlatformGate, PlatformReport } from "../types/platform";
 
 type ReportType = "Daily" | "Maintenance" | "Assets" | "Employees";
@@ -88,6 +83,12 @@ const statusLabel: Record<ReportUiStatus, string> = {
   Approved: "معتمد",
 };
 
+function statusColor(value: ReportUiStatus): "success" | "primary" | "warning" {
+  if (value === "Approved") return "success";
+  if (value === "Ready") return "primary";
+  return "warning";
+}
+
 function uiType(value: string): ReportType {
   if (value === "maintenance") return "Maintenance";
   if (value === "assets") return "Assets";
@@ -146,7 +147,6 @@ export default function Reports() {
       setReports([]);
       return;
     }
-
     setLoading(true);
     setError(null);
     try {
@@ -154,28 +154,22 @@ export default function Reports() {
         setReports(demoReports);
         return;
       }
-
       const cloudReports = await listRecords<PlatformReport>("reports", {
         order: "created_at.desc",
         filters: { project_id: `eq.${selectedProject.id}` },
       });
-
-      setReports(
-        cloudReports.map((report) => ({
-          id: report.id,
-          code: report.report_no,
-          title: report.title,
-          type: uiType(report.report_type),
-          location: selectedProject.location || "المشروع",
-          period: report.period_start && report.period_end
-            ? `${report.period_start} — ${report.period_end}`
-            : report.period_start ?? report.created_at.slice(0, 10),
-          status: uiStatus(report.status),
-          owner: report.created_by ? "مستخدم معتمد" : "نظام ACP",
-          payload: report.payload,
-          createdAt: report.created_at.slice(0, 10),
-        })),
-      );
+      setReports(cloudReports.map((report) => ({
+        id: report.id,
+        code: report.report_no,
+        title: report.title,
+        type: uiType(report.report_type),
+        location: selectedProject.location || "المشروع",
+        period: report.period_start && report.period_end ? `${report.period_start} — ${report.period_end}` : report.period_start ?? report.created_at.slice(0, 10),
+        status: uiStatus(report.status),
+        owner: report.created_by ? "مستخدم معتمد" : "نظام ACP",
+        payload: report.payload,
+        createdAt: report.created_at.slice(0, 10),
+      })));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "تعذر تحميل التقارير.");
     } finally {
@@ -183,19 +177,13 @@ export default function Reports() {
     }
   }, [demoMode, selectedProject]);
 
-  useEffect(() => {
-    void loadReports();
-  }, [loadReports]);
+  useEffect(() => { void loadReports(); }, [loadReports]);
 
   const filteredReports = useMemo(() => {
     const term = search.trim().toLowerCase();
     return reports.filter((report) => {
-      const matchesSearch = !term || [report.code, report.title, report.location, report.owner]
-        .join(" ")
-        .toLowerCase()
-        .includes(term);
-      const matchesType = type === "All" || report.type === type;
-      return matchesSearch && matchesType;
+      const matchesSearch = !term || [report.code, report.title, report.location, report.owner].join(" ").toLowerCase().includes(term);
+      return matchesSearch && (type === "All" || report.type === type);
     });
   }, [reports, search, type]);
 
@@ -225,7 +213,6 @@ export default function Reports() {
     try {
       const today = new Date().toISOString().slice(0, 10);
       let rows: DailyExportRow[];
-
       if (demoMode) {
         rows = [
           { gate: "مبنى 1 - بوابة 1", trucks: 18, visitors: 42, contractors: 7, event: "لا يوجد", action: "لا يوجد" },
@@ -233,12 +220,8 @@ export default function Reports() {
         ];
       } else {
         const [logs, gates] = await Promise.all([
-          listRecords<GateDailyLog>("gate_daily_logs", {
-            filters: { project_id: `eq.${selectedProject.id}`, log_date: `eq.${today}` },
-          }),
-          listRecords<PlatformGate>("gates", {
-            filters: { project_id: `eq.${selectedProject.id}` },
-          }),
+          listRecords<GateDailyLog>("gate_daily_logs", { filters: { project_id: `eq.${selectedProject.id}`, log_date: `eq.${today}` } }),
+          listRecords<PlatformGate>("gates", { filters: { project_id: `eq.${selectedProject.id}` } }),
         ]);
         const gateMap = new Map(gates.map((gate) => [gate.id, gate.name]));
         rows = logs.map((log) => ({
@@ -265,9 +248,8 @@ export default function Reports() {
         createdAt: today,
       };
 
-      if (demoMode) {
-        setReports((current) => [record, ...current]);
-      } else {
+      if (demoMode) setReports((current) => [record, ...current]);
+      else {
         const timestamp = new Date().toISOString();
         await createRecord<PlatformReport>("reports", {
           project_id: selectedProject.id,
@@ -296,16 +278,10 @@ export default function Reports() {
 
   const approveReport = async (report: ReportRecord) => {
     try {
-      if (demoMode) {
-        setReports((current) => current.map((item) => item.id === report.id ? { ...item, status: "Approved" } : item));
-      } else {
+      if (demoMode) setReports((current) => current.map((item) => item.id === report.id ? { ...item, status: "Approved" } : item));
+      else {
         const timestamp = new Date().toISOString();
-        await updateRecord<PlatformReport>("reports", report.id, {
-          status: "approved",
-          approved_by: profile?.id ?? null,
-          approved_at: timestamp,
-          updated_at: timestamp,
-        });
+        await updateRecord<PlatformReport>("reports", report.id, { status: "approved", approved_by: profile?.id ?? null, approved_at: timestamp, updated_at: timestamp });
         await loadReports();
       }
     } catch (reason) {
@@ -324,82 +300,90 @@ export default function Reports() {
     }
   };
 
-  const columns = useMemo<GridColDef<ReportRecord>[]>(
-    () => [
-      { field: "code", headerName: "رقم التقرير", minWidth: 150 },
-      { field: "title", headerName: "اسم التقرير", minWidth: 210, flex: 1.1 },
-      { field: "type", headerName: "النوع", minWidth: 130, valueFormatter: (value) => typeLabel[value as ReportType] },
-      { field: "period", headerName: "الفترة", minWidth: 130 },
-      { field: "owner", headerName: "إعداد", minWidth: 145 },
-      {
-        field: "status",
-        headerName: "الحالة",
-        minWidth: 105,
-        renderCell: ({ value }) => (
-          <Chip size="small" color={value === "Approved" ? "success" : value === "Ready" ? "primary" : "warning"} label={statusLabel[value as ReportUiStatus]} />
-        ),
-      },
-      {
-        field: "actions",
-        headerName: "الإجراءات",
-        minWidth: 290,
-        sortable: false,
-        renderCell: ({ row }) => (
-          <Stack direction="row" spacing={0.5}>
-            <Button size="small" onClick={() => openPrintableReport(buildDefinition(row))}>PDF</Button>
-            <Button size="small" onClick={() => exportReportToExcel(buildDefinition(row))}>Excel</Button>
-            {canApprove && row.status !== "Approved" && <Button size="small" color="success" onClick={() => void approveReport(row)}>اعتماد</Button>}
-            {canDelete && <Button size="small" color="error" onClick={() => void removeReport(row)}>حذف</Button>}
-          </Stack>
-        ),
-      },
-    ],
-    [canApprove, canDelete, profile?.full_name, selectedProject?.name],
-  );
+  const columns = useMemo<GridColDef<ReportRecord>[]>(() => [
+    { field: "code", headerName: "رقم التقرير", minWidth: 150 },
+    { field: "title", headerName: "اسم التقرير", minWidth: 210, flex: 1.1 },
+    { field: "type", headerName: "النوع", minWidth: 130, valueFormatter: (value) => typeLabel[value as ReportType] },
+    { field: "period", headerName: "الفترة", minWidth: 130 },
+    { field: "owner", headerName: "إعداد", minWidth: 145 },
+    { field: "status", headerName: "الحالة", minWidth: 105, renderCell: ({ value }) => <Chip size="small" color={statusColor(value as ReportUiStatus)} label={statusLabel[value as ReportUiStatus]} /> },
+    {
+      field: "actions",
+      headerName: "الإجراءات",
+      minWidth: 290,
+      sortable: false,
+      renderCell: ({ row }) => (
+        <Stack direction="row" spacing={0.5}>
+          <Button size="small" onClick={() => void openPrintableReport(buildDefinition(row))}>PDF</Button>
+          <Button size="small" onClick={() => exportReportToExcel(buildDefinition(row))}>Excel</Button>
+          {canApprove && row.status !== "Approved" && <Button size="small" color="success" onClick={() => void approveReport(row)}>اعتماد</Button>}
+          {canDelete && <Button size="small" color="error" onClick={() => void removeReport(row)}>حذف</Button>}
+        </Stack>
+      ),
+    },
+  ], [canApprove, canDelete, profile?.full_name, selectedProject?.name]);
 
-  if (!selectedProject) {
-    return <Alert severity="info">اختر مشروعًا أولًا لإنشاء التقارير.</Alert>;
-  }
+  if (!selectedProject) return <Alert severity="info">اختر مشروعًا أولًا لإنشاء التقارير.</Alert>;
 
   return (
     <Box dir="rtl">
       <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={2} sx={{ mb: 3 }}>
-        <Box>
-          <Typography variant="h4" fontWeight={800}>مركز التقارير</Typography>
-          <Typography color="text.secondary">تقارير محفوظة وقابلة للاعتماد والتصدير PDF وExcel والتحقق عبر QR.</Typography>
-        </Box>
-        {canCreate && (
-          <Button variant="contained" onClick={() => void generateDailyReport()} disabled={generating}>
-            {generating ? <CircularProgress size={22} color="inherit" /> : "إنشاء تقرير يومي"}
-          </Button>
-        )}
+        <Box><Typography variant="h4">مركز التقارير</Typography><Typography color="text.secondary">تقارير محفوظة وقابلة للاعتماد والتصدير PDF وExcel والتحقق عبر QR.</Typography></Box>
+        {canCreate && <Button variant="contained" onClick={() => void generateDailyReport()} disabled={generating}>{generating ? <CircularProgress size={22} color="inherit" /> : "إنشاء تقرير يومي"}</Button>}
       </Stack>
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mb: 2 }}>
-        <Paper sx={{ p: 2, flex: 1, borderRadius: 3 }}><Typography variant="body2" color="text.secondary">إجمالي التقارير</Typography><Typography variant="h4" fontWeight={800}>{reports.length}</Typography></Paper>
-        <Paper sx={{ p: 2, flex: 1, borderRadius: 3 }}><Typography variant="body2" color="text.secondary">المعتمدة</Typography><Typography variant="h4" fontWeight={800}>{reports.filter((report) => report.status === "Approved").length}</Typography></Paper>
-        <Paper sx={{ p: 2, flex: 1, borderRadius: 3 }}><Typography variant="body2" color="text.secondary">المسودات</Typography><Typography variant="h4" fontWeight={800}>{reports.filter((report) => report.status === "Draft").length}</Typography></Paper>
+      <Stack direction={{ xs: "row", md: "row" }} spacing={1.5} sx={{ mb: 2, overflowX: "auto", pb: 0.5 }}>
+        {[
+          ["إجمالي التقارير", reports.length],
+          ["المعتمدة", reports.filter((report) => report.status === "Approved").length],
+          ["المسودات", reports.filter((report) => report.status === "Draft").length],
+        ].map(([label, value]) => <Paper key={String(label)} variant="outlined" sx={{ p: 2, flex: { md: 1 }, minWidth: { xs: 150, md: 0 }, borderRadius: 3 }}><Typography variant="body2" color="text.secondary">{label}</Typography><Typography variant="h4">{value}</Typography></Paper>)}
       </Stack>
 
       <Paper sx={{ p: 2, mb: 2, borderRadius: 3 }}>
         <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-          <TextField fullWidth size="small" label="بحث في التقارير" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <TextField select size="small" label="نوع التقرير" value={type} onChange={(event) => setType(event.target.value as "All" | ReportType)} sx={{ minWidth: 190 }}>
-            <MenuItem value="All">جميع الأنواع</MenuItem>
-            {Object.entries(typeLabel).map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}
+          <TextField fullWidth label="بحث في التقارير" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <TextField select label="نوع التقرير" value={type} onChange={(event) => setType(event.target.value as "All" | ReportType)} sx={{ minWidth: { md: 190 } }}>
+            <MenuItem value="All">جميع الأنواع</MenuItem>{Object.entries(typeLabel).map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}
           </TextField>
         </Stack>
       </Paper>
 
-      <Paper sx={{ height: 560, borderRadius: 3, overflow: "hidden" }}>
-        {loading ? (
-          <Box sx={{ height: "100%", display: "grid", placeItems: "center" }}><CircularProgress /></Box>
-        ) : (
-          <DataGrid rows={filteredReports} columns={columns} disableRowSelectionOnClick pageSizeOptions={[10, 25, 50]} initialState={{ pagination: { paginationModel: { pageSize: 10, page: 0 } } }} sx={{ border: 0, direction: "rtl" }} />
-        )}
-      </Paper>
+      {loading ? (
+        <Paper variant="outlined" sx={{ minHeight: 300, display: "grid", placeItems: "center", borderRadius: 3 }}><CircularProgress /></Paper>
+      ) : filteredReports.length === 0 ? (
+        <Alert severity="info">لا توجد تقارير مطابقة.</Alert>
+      ) : (
+        <>
+          <Stack spacing={1.5} sx={{ display: { xs: "flex", md: "none" } }}>
+            {filteredReports.map((report) => (
+              <Paper key={report.id} data-report-id={report.id} variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
+                <Stack direction="row" justifyContent="space-between" spacing={1.5} alignItems="flex-start">
+                  <Box minWidth={0}>
+                    <Typography variant="caption" color="secondary.dark" fontWeight={900}>{report.code}</Typography>
+                    <Typography variant="h6" sx={{ mt: 0.25 }}>{report.title}</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{typeLabel[report.type]} — {report.period}</Typography>
+                  </Box>
+                  <Chip size="small" color={statusColor(report.status)} label={statusLabel[report.status]} />
+                </Stack>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>إعداد: {report.owner} • {report.location}</Typography>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 2 }}>
+                  <Button variant="contained" startIcon={<DescriptionOutlinedIcon />} onClick={() => void openPrintableReport(buildDefinition(report))}>PDF</Button>
+                  <Button variant="outlined" startIcon={<DownloadOutlinedIcon />} onClick={() => exportReportToExcel(buildDefinition(report))}>Excel</Button>
+                  {canApprove && report.status !== "Approved" && <Button color="success" startIcon={<VerifiedOutlinedIcon />} onClick={() => void approveReport(report)}>اعتماد</Button>}
+                  {canDelete && <Button color="error" startIcon={<DeleteOutlineOutlinedIcon />} onClick={() => void removeReport(report)}>حذف</Button>}
+                </Stack>
+              </Paper>
+            ))}
+          </Stack>
+
+          <Paper sx={{ height: 560, borderRadius: 3, overflow: "hidden", display: { xs: "none", md: "block" } }}>
+            <DataGrid rows={filteredReports} columns={columns} disableRowSelectionOnClick pageSizeOptions={[10, 25, 50]} initialState={{ pagination: { paginationModel: { pageSize: 10, page: 0 } } }} sx={{ border: 0, direction: "rtl" }} />
+          </Paper>
+        </>
+      )}
     </Box>
   );
 }
