@@ -7,7 +7,7 @@ select plan(9);
 select has_column('public', 'warehouses', 'manager_id', 'warehouses has a real manager field');
 select col_is_fk('public', 'warehouses', 'manager_id', 'warehouse manager references an employee');
 select has_column('public', 'warehouses', 'capacity', 'warehouses has a capacity field');
-select col_type_is('public', 'warehouses', 'capacity', 'numeric', 'warehouse capacity uses numeric precision');
+select col_type_is('public', 'warehouses', 'capacity', 'numeric(14,3)', 'warehouse capacity uses numeric precision');
 select col_not_null('public', 'warehouses', 'capacity', 'warehouse capacity cannot be null');
 select col_has_default('public', 'warehouses', 'capacity', 'warehouse capacity has a default');
 select ok(
