@@ -56,6 +56,24 @@ async function login(page) {
   await expect(page.getByRole("heading", { name: "لوحة التحكم التنفيذية" })).toBeVisible();
 }
 
+async function verifyBrandAndPrint(page) {
+  const logo = page.locator('img[alt="شعار ACP Enterprise"]:visible').first();
+  await expect(logo, "ACP logo must be visible in the authenticated shell").toBeVisible();
+  await expect.poll(() => logo.evaluate((image) => image.naturalWidth)).toBeGreaterThan(0);
+  await expect(page.locator(".acp-print-header img")).toHaveCount(1);
+
+  await page.evaluate(() => {
+    window.print = () => {
+      document.documentElement.dataset.acpPrintInvoked = "true";
+    };
+  });
+  await page.getByRole("button", { name: "طباعة الصفحة الحالية" }).click();
+  await expect.poll(
+    () => page.locator("html").getAttribute("data-acp-print-invoked"),
+    { message: "The print control must invoke window.print" },
+  ).toBe("true");
+}
+
 async function selectFirstProject(page) {
   await clickNavigation(page, "المشاريع");
   await assertHealthyScreen(page, "المشاريع");
@@ -146,6 +164,7 @@ test("commercial authenticated workflow is healthy across all primary screens", 
   const failures = collectRuntimeFailures(page);
   await login(page);
   await assertHealthyScreen(page, "لوحة التحكم التنفيذية");
+  await verifyBrandAndPrint(page);
   await selectFirstProject(page);
 
   const screens = [

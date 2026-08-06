@@ -25,6 +25,7 @@ import DoorFrontOutlinedIcon from "@mui/icons-material/DoorFrontOutlined";
 import FactCheckOutlinedIcon from "@mui/icons-material/FactCheckOutlined";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import LocationCityOutlinedIcon from "@mui/icons-material/LocationCityOutlined";
+import PrintOutlinedIcon from "@mui/icons-material/PrintOutlined";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import StoreOutlinedIcon from "@mui/icons-material/StoreOutlined";
 
@@ -106,26 +107,58 @@ export default function App() {
     setMobileMenuOpen(false);
   };
 
+  const printCurrentView = () => {
+    setMobileMenuOpen(false);
+    window.setTimeout(() => window.print(), 80);
+  };
+
   const renderPage = () => {
     switch (page) {
-      case "sites": return <SitesPage />;
-      case "projects": return <ProjectsPage />;
-      case "assets": return <Buildings onOpenAsset={openAssetProfile} />;
-      case "asset-profile": return selectedAsset ? <AssetProfile asset={selectedAsset} onBack={closeAssetProfile} /> : <Buildings onOpenAsset={openAssetProfile} />;
-      case "gates": return <Gates />;
-      case "employees": return <Employees />;
-      case "warehouses": return <Warehouses />;
-      case "maintenance": return <Maintenance />;
-      case "reports": return <Reports />;
-      case "settings": return profile?.role === "system_admin" ? <Settings /> : <Dashboard />;
-      default: return <Dashboard />;
+      case "sites":
+        return <SitesPage />;
+      case "projects":
+        return <ProjectsPage />;
+      case "assets":
+        return <Buildings onOpenAsset={openAssetProfile} />;
+      case "asset-profile":
+        return selectedAsset ? (
+          <AssetProfile asset={selectedAsset} onBack={closeAssetProfile} />
+        ) : (
+          <Buildings onOpenAsset={openAssetProfile} />
+        );
+      case "gates":
+        return <Gates />;
+      case "employees":
+        return <Employees />;
+      case "warehouses":
+        return <Warehouses />;
+      case "maintenance":
+        return <Maintenance />;
+      case "reports":
+        return <Reports />;
+      case "settings":
+        return profile?.role === "system_admin" ? <Settings /> : <Dashboard />;
+      default:
+        return <Dashboard />;
     }
   };
 
   if (loading) {
     return (
-      <Box sx={{ minHeight: "100vh", display: "grid", placeItems: "center", bgcolor: "background.default" }}>
-        <Box textAlign="center"><CircularProgress /><Typography color="text.secondary" sx={{ mt: 2 }}>جارٍ تهيئة بيئة ACP الآمنة…</Typography></Box>
+      <Box
+        sx={{
+          minHeight: "100vh",
+          display: "grid",
+          placeItems: "center",
+          bgcolor: "background.default",
+        }}
+      >
+        <Box textAlign="center">
+          <CircularProgress />
+          <Typography color="text.secondary" sx={{ mt: 2 }}>
+            جارٍ تهيئة بيئة ACP الآمنة…
+          </Typography>
+        </Box>
       </Box>
     );
   }
@@ -143,19 +176,27 @@ export default function App() {
             onClick={() => selectPage(item.key)}
             sx={{
               textAlign: "right",
-              borderRadius: 2,
-              mb: 0.5,
-              minHeight: 46,
+              borderRadius: 2.5,
+              mb: 0.65,
+              minHeight: 48,
               "&.Mui-selected": {
-                bgcolor: "rgba(201,162,39,.16)",
-                color: "#071B34",
-                borderInlineStart: "4px solid #C9A227",
-                "&:hover": { bgcolor: "rgba(201,162,39,.20)" },
+                bgcolor: "rgba(199,164,87,.16)",
+                color: "primary.main",
+                borderInlineStart: "4px solid",
+                borderInlineStartColor: "secondary.main",
+                "&:hover": { bgcolor: "rgba(199,164,87,.22)" },
               },
             }}
           >
-            <ListItemIcon sx={{ minWidth: 38, color: selected ? "#9A7A18" : "#506178" }}>{item.icon}</ListItemIcon>
-            <ListItemText primary={item.title} slotProps={{ primary: { fontWeight: selected ? 800 : 600 } }} />
+            <ListItemIcon
+              sx={{ minWidth: 40, color: selected ? "secondary.dark" : "text.secondary" }}
+            >
+              {item.icon}
+            </ListItemIcon>
+            <ListItemText
+              primary={item.title}
+              slotProps={{ primary: { fontWeight: selected ? 800 : 650 } }}
+            />
           </ListItemButton>
         );
       })}
@@ -163,7 +204,16 @@ export default function App() {
   );
 
   const drawerHeader = (
-    <Box sx={{ px: 2.25, py: 2, borderBottom: "1px solid", borderColor: "divider", bgcolor: "#FBFCFE" }}>
+    <Box
+      sx={{
+        px: 2.25,
+        py: 2.25,
+        borderBottom: "1px solid",
+        borderColor: "divider",
+        bgcolor: "rgba(255,255,255,.82)",
+        backdropFilter: "blur(14px)",
+      }}
+    >
       <BrandMark />
       <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1.25 }}>
         الإصدار {ACP.version} • {profile?.role === "system_admin" ? "مدير النظام" : "مستخدم معتمد"}
@@ -172,28 +222,184 @@ export default function App() {
   );
 
   return (
-    <Box sx={{ display: "flex", direction: "rtl", width: "100%", minWidth: 0, minHeight: "100vh", overflowX: "clip" }}>
-      <AppBar position="fixed" elevation={0} sx={{ bgcolor: "#071B34", zIndex: (value) => value.zIndex.drawer + 1, borderBottom: "3px solid #C9A227" }}>
-        <Toolbar sx={{ gap: { xs: 0.75, sm: 1.5 }, minWidth: 0, overflow: "hidden" }}>
-          <IconButton color="inherit" edge="start" aria-label="فتح القائمة" onClick={() => setMobileMenuOpen(true)} sx={{ display: { xs: "inline-flex", md: "none" }, flexShrink: 0 }}><MenuIcon /></IconButton>
-          <Box sx={{ display: { xs: "none", sm: "block" }, flexGrow: 1, minWidth: 0 }}><BrandMark compact dark /></Box>
-          <Typography sx={{ display: { xs: "block", sm: "none" }, flexGrow: 1, fontWeight: 900, whiteSpace: "nowrap" }}>ACP</Typography>
-          <Chip size="small" label={demoMode ? "وضع تجريبي" : syncText} sx={{ display: { xs: "none", sm: "inline-flex" }, bgcolor: demoMode ? "#C9A227" : "rgba(255,255,255,.14)", color: demoMode ? "#071B34" : "white", flexShrink: 0 }} />
-          <Typography variant="body2" sx={{ display: { xs: "none", lg: "block" }, whiteSpace: "nowrap", color: "rgba(255,255,255,.78)" }}>{profile?.full_name}</Typography>
-          {!demoMode && <Button color="inherit" size="small" onClick={() => void signOut()} sx={{ whiteSpace: "nowrap", minWidth: 0, px: { xs: 0.75, sm: 1.5 } }}><Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>تسجيل&nbsp;</Box>الخروج</Button>}
+    <Box
+      className="acp-app-shell"
+      sx={{
+        display: "flex",
+        direction: "rtl",
+        width: "100%",
+        minWidth: 0,
+        minHeight: "100vh",
+        overflowX: "clip",
+      }}
+    >
+      <AppBar
+        className="acp-no-print"
+        position="fixed"
+        elevation={0}
+        sx={{
+          bgcolor: "rgba(8,24,43,.96)",
+          backdropFilter: "blur(18px)",
+          zIndex: (value) => value.zIndex.drawer + 1,
+          borderBottom: "1px solid rgba(199,164,87,.44)",
+          boxShadow: "0 10px 32px rgba(4,16,29,.16)",
+        }}
+      >
+        <Toolbar sx={{ gap: { xs: 0.75, sm: 1.25 }, minWidth: 0, overflow: "hidden" }}>
+          <IconButton
+            color="inherit"
+            edge="start"
+            aria-label="فتح القائمة"
+            onClick={() => setMobileMenuOpen(true)}
+            sx={{ display: { xs: "inline-flex", md: "none" }, flexShrink: 0 }}
+          >
+            <MenuIcon />
+          </IconButton>
+
+          <Box sx={{ display: { xs: "none", sm: "block" }, flexGrow: 1, minWidth: 0 }}>
+            <BrandMark compact dark />
+          </Box>
+          <Box
+            sx={{
+              display: { xs: "flex", sm: "none" },
+              alignItems: "center",
+              gap: 0.75,
+              flexGrow: 1,
+              minWidth: 0,
+            }}
+          >
+            <Box
+              component="img"
+              src="/acp-mark.svg"
+              alt="شعار ACP Enterprise"
+              sx={{ width: 32, height: 32, flexShrink: 0 }}
+            />
+            <Typography sx={{ fontWeight: 900, letterSpacing: ".04em", whiteSpace: "nowrap" }}>
+              ACP
+            </Typography>
+          </Box>
+
+          <Chip
+            size="small"
+            label={demoMode ? "وضع تجريبي" : syncText}
+            sx={{
+              display: { xs: "none", sm: "inline-flex" },
+              bgcolor: demoMode ? "secondary.main" : "rgba(255,255,255,.12)",
+              color: demoMode ? "primary.main" : "white",
+              border: "1px solid rgba(255,255,255,.10)",
+              flexShrink: 0,
+            }}
+          />
+          <Typography
+            variant="body2"
+            sx={{
+              display: { xs: "none", lg: "block" },
+              whiteSpace: "nowrap",
+              color: "rgba(255,255,255,.76)",
+            }}
+          >
+            {profile?.full_name}
+          </Typography>
+          <Button
+            color="inherit"
+            size="small"
+            onClick={printCurrentView}
+            startIcon={<PrintOutlinedIcon />}
+            aria-label="طباعة الصفحة الحالية"
+            sx={{ whiteSpace: "nowrap", minWidth: 0, px: { xs: 0.75, sm: 1.25 } }}
+          >
+            <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
+              طباعة
+            </Box>
+          </Button>
+          {!demoMode && (
+            <Button
+              color="inherit"
+              size="small"
+              onClick={() => void signOut()}
+              sx={{ whiteSpace: "nowrap", minWidth: 0, px: { xs: 0.75, sm: 1.25 } }}
+            >
+              <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
+                تسجيل&nbsp;
+              </Box>
+              الخروج
+            </Button>
+          )}
         </Toolbar>
       </AppBar>
 
-      <Drawer variant="temporary" anchor="right" open={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} ModalProps={{ keepMounted: true }} sx={{ display: { xs: "block", md: "none" }, "& .MuiDrawer-paper": { width: "min(86vw, 310px)", boxSizing: "border-box", direction: "rtl" } }}>
-        {drawerHeader}{navigationList}
+      <Drawer
+        className="acp-no-print"
+        variant="temporary"
+        anchor="right"
+        open={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+        ModalProps={{ keepMounted: true }}
+        sx={{
+          display: { xs: "block", md: "none" },
+          "& .MuiDrawer-paper": {
+            width: "min(86vw, 310px)",
+            boxSizing: "border-box",
+            direction: "rtl",
+          },
+        }}
+      >
+        {drawerHeader}
+        {navigationList}
       </Drawer>
 
-      <Drawer variant="permanent" anchor="right" open sx={{ display: { xs: "none", md: "block" }, width: drawerWidth, flexShrink: 0, "& .MuiDrawer-paper": { width: drawerWidth, boxSizing: "border-box", top: 67, height: "calc(100% - 67px)", direction: "rtl", borderRight: 0, borderLeft: "1px solid #DCE3EC" } }}>
-        {drawerHeader}{navigationList}
+      <Drawer
+        className="acp-no-print"
+        variant="permanent"
+        anchor="right"
+        open
+        sx={{
+          display: { xs: "none", md: "block" },
+          width: drawerWidth,
+          flexShrink: 0,
+          "& .MuiDrawer-paper": {
+            width: drawerWidth,
+            boxSizing: "border-box",
+            top: 67,
+            height: "calc(100% - 67px)",
+            direction: "rtl",
+            borderRight: 0,
+            borderLeft: "1px solid",
+            borderColor: "divider",
+            bgcolor: "rgba(248,250,253,.94)",
+          },
+        }}
+      >
+        {drawerHeader}
+        {navigationList}
       </Drawer>
 
-      <Box component="main" sx={{ flexGrow: 1, minWidth: 0, width: { xs: "100%", md: `calc(100% - ${drawerWidth}px)` }, mt: { xs: "59px", sm: "67px" }, bgcolor: "background.default", minHeight: { xs: "calc(100vh - 59px)", sm: "calc(100vh - 67px)" }, p: { xs: 1.5, sm: 2, md: 3 }, overflowX: "hidden" }}>
-        {renderPage()}
+      <Box
+        component="main"
+        className="acp-main"
+        sx={{
+          flexGrow: 1,
+          minWidth: 0,
+          width: { xs: "100%", md: `calc(100% - ${drawerWidth}px)` },
+          mt: { xs: "59px", sm: "67px" },
+          bgcolor: "background.default",
+          minHeight: { xs: "calc(100vh - 59px)", sm: "calc(100vh - 67px)" },
+          p: { xs: 1.5, sm: 2, md: 3 },
+          overflowX: "hidden",
+        }}
+      >
+        <Box className="acp-print-header" aria-hidden="true">
+          <BrandMark />
+          <Box sx={{ textAlign: "left" }}>
+            <Typography variant="overline" color="text.secondary">
+              نسخة مطبوعة من منصة ACP
+            </Typography>
+            <Typography variant="caption" display="block" color="text.secondary">
+              {new Date().toLocaleString("ar-SA")}
+            </Typography>
+          </Box>
+        </Box>
+        <Box className="acp-print-content">{renderPage()}</Box>
       </Box>
     </Box>
   );
